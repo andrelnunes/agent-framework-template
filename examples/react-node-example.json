@@ -1,0 +1,47 @@
+{
+  "projectName": "MyApp",
+  "projectDescription": "Full-stack web application with React frontend and Node.js backend",
+  "currentPhase": "MVP Development",
+  "agentMode": "multi",
+  "agentCount": 4,
+  "agentRoles": ["Frontend", "Backend", "Docs", "QA"],
+  "docsAgent": "Docs-1",
+  "mainBranch": "main",
+  "frontendDir": "src/",
+  "backendDir": "server/",
+  "migrationsDir": "server/migrations/",
+  "testsDir": "tests/",
+  "frontendFramework": "React",
+  "backendFramework": "Node.js + Express",
+  "database": "PostgreSQL",
+  "buildTool": "Vite",
+  "packageManager": "npm",
+  "frontendZones": [
+    "src/components/**",
+    "src/pages/**",
+    "src/styles/**",
+    "src/hooks/**"
+  ],
+  "backendZones": [
+    "server/**",
+    "api/**",
+    "server/migrations/**"
+  ],
+  "sharedZones": [
+    "package.json",
+    "tsconfig.json",
+    "README.md",
+    ".env.example"
+  ],
+  "forbiddenMods": [
+    ".git/",
+    "node_modules/",
+    ".env"
+  ],
+  "commitFormat": "conventional",
+  "typescriptStrict": true,
+  "testCoverageMin": 80,
+  "changelogFormat": "keepachangelog",
+  "enablePreCommitHooks": true,
+  "createInitialCommit": true
+}

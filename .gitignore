@@ -1,0 +1,28 @@
+# Node modules
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Agent-specific temporary files
+.agent-cache/
+.agent-temp/
+
+# Test outputs
+test-output/
+.agent-framework-test/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*

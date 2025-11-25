@@ -1,0 +1,46 @@
+{
+  "projectName": "DjangoAPI",
+  "projectDescription": "REST API backend built with Django and PostgreSQL",
+  "currentPhase": "Beta",
+  "agentMode": "multi",
+  "agentCount": 3,
+  "agentRoles": ["Backend", "Docs", "QA"],
+  "docsAgent": "Docs-1",
+  "mainBranch": "main",
+  "frontendDir": "frontend/",
+  "backendDir": "backend/",
+  "migrationsDir": "backend/migrations/",
+  "testsDir": "tests/",
+  "frontendFramework": "N/A (API only)",
+  "backendFramework": "Django + DRF",
+  "database": "PostgreSQL",
+  "buildTool": "Docker",
+  "packageManager": "pip",
+  "frontendZones": [],
+  "backendZones": [
+    "backend/**",
+    "api/**",
+    "backend/migrations/**",
+    "manage.py",
+    "requirements.txt"
+  ],
+  "sharedZones": [
+    "README.md",
+    "docker-compose.yml",
+    "Dockerfile",
+    ".env.example"
+  ],
+  "forbiddenMods": [
+    ".git/",
+    "venv/",
+    "__pycache__/",
+    ".env",
+    "*.pyc"
+  ],
+  "commitFormat": "conventional",
+  "typescriptStrict": false,
+  "testCoverageMin": 85,
+  "changelogFormat": "keepachangelog",
+  "enablePreCommitHooks": true,
+  "createInitialCommit": true
+}
