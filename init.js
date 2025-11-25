@@ -1317,14 +1317,20 @@ function generateTasksForEpic(epic) {
  * Generate backlog markdown content from epics
  */
 function generateBacklogContent(epics, config) {
+  console.log(chalk.cyan('  📝 Generating backlog structure...'));
+
   let taskCounter = 1;
   const activeTasks = [];
   const backlogTasks = [];
+
+  console.log(chalk.gray(`  → Processing ${epics.length} epics...`));
 
   epics.forEach((epic, epicIdx) => {
     const epicTasks = epic.tasks && epic.tasks.length > 0
       ? epic.tasks
       : generateTasksForEpic(epic);
+
+    console.log(chalk.gray(`  → Epic ${epicIdx + 1}/${epics.length}: "${epic.name}" (${epicTasks.length} tasks)`));
 
     epicTasks.forEach((task, taskIdx) => {
       const taskEntry = {
@@ -1335,7 +1341,8 @@ function generateBacklogContent(epics, config) {
         effort: '2-4h',
         dependencies: taskIdx === 0 ? '-' : `#${taskCounter - 2}`,
         status: taskIdx < 2 ? '⏳ TODO' : '📋 BACKLOG',
-        epic: epic.name
+        epic: epic.name,
+        notes: ''
       };
 
       if (taskIdx < 2) {
@@ -1346,81 +1353,193 @@ function generateBacklogContent(epics, config) {
     });
   });
 
+  console.log(chalk.green(`  ✓ Generated ${activeTasks.length} active tasks and ${backlogTasks.length} backlog tasks`));
+
   const renderTaskRow = (t) => config.agentMode === 'multi'
-    ? `| ${t.number} | ${t.task} | ${t.owner} | ${t.status} | ${t.priority} | ${t.effort} | ${t.dependencies} | ${t.epic} |`
-    : `| ${t.number} | ${t.task} | ${t.status} | ${t.priority} | ${t.effort} | ${t.dependencies} | ${t.epic} |`;
+    ? `| ${t.number} | ${t.task} | ${t.owner} | ${t.status} | ${t.notes || '-'} |`
+    : `| ${t.number} | ${t.task} | ${t.status} | ${t.notes || '-'} |`;
 
   const tableHeader = config.agentMode === 'multi'
-    ? `| # | Task | Owner | Status | Priority | Effort | Dependencies | Epic |
-|---|------|-------|--------|----------|--------|--------------|------|`
-    : `| # | Task | Status | Priority | Effort | Dependencies | Epic |
-|---|------|--------|----------|--------|--------------|------|`;
+    ? `| # | Task | Owner | Status | Notes |\n|---|------|-------|--------|-------|`
+    : `| # | Task | Status | Notes |\n|---|------|--------|-------|`;
 
-  return `# ${config.projectName} - Backlog
+  const currentDate = new Date().toISOString().split('T')[0];
+  const dateFormatted = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 
-> **Last Updated:** ${new Date().toISOString().split('T')[0]}
-> **Current Phase:** ${config.currentPhase}
-> **Mode:** ${config.agentMode === 'single' ? 'Single Agent' : 'Multi-Agent'}
+  return `# ${config.projectName} – Active Backlog
+
+> **Last Updated:** ${dateFormatted} (Framework Initialization)
+> **Scope:** ${config.currentPhase} development
+> **Mode:** ${config.agentMode === 'single' ? 'Single Agent' : `Multi-Agent (${config.agentCount || 2} agents)`}
+${config.agentMode === 'multi' ? `> **Active Agents:** ${config.agents ? config.agents.map(a => a.name).join(', ') : 'To be assigned'}` : ''}
 
 ---
 
-## 📋 Active Sprint
+## 🚀 Current Focus
+
+${epics.length > 0 ? `- ${epics.slice(0, 3).map(e => e.name).join('\n- ')}` : '- Define project scope and initial features'}
+- Complete initial setup and configuration
+- Establish development workflow${config.agentMode === 'multi' ? '\n- Coordinate agent responsibilities and file ownership' : ''}
+
+---
+
+## 📋 Active Tasks
 
 ${tableHeader}
-${activeTasks.map(renderTaskRow).join('\n')}
+${activeTasks.length > 0 ? activeTasks.map(renderTaskRow).join('\n') : `| 1 | Project setup and initialization | ${config.agentMode === 'multi' ? '- | ' : ''}✅ Complete | Framework generated |`}
 
 ---
 
-## 🔮 Backlog
+## 🚫 Blockers
+
+${config.agentMode === 'multi' ? '- None — All agents ready to start work' : '- None — Ready to begin development'}
+
+---
+
+## 🐞 Open Issues (Require Fix + Retest)
+
+| ID | Title | Owner | Status / Next Action |
+|---|---|---|---|
+| - | No issues yet | - | Track issues as they arise |
+
+**Issue Template:**
+\`\`\`markdown
+| YYYY-MM-DD-## | Issue title | Owner | Status / Next Action |
+\`\`\`
+
+---
+
+## 📌 Technical Debt (Track Items for Future Cleanup)
+
+1. **Initial Setup Items**
+   - Review and optimize initial configuration
+   - Add comprehensive error handling
+   - Implement logging and monitoring
+   ${config.agentMode === 'multi' ? '- Establish agent coordination patterns' : ''}
+
+**Debt Template:**
+\`\`\`markdown
+1. **Item Category**
+   - Specific item description
+   - Impact and priority
+   - Proposed solution
+\`\`\`
+
+---
+
+## 🔮 Backlog (Future Work)
 
 ${tableHeader}
-${backlogTasks.map(renderTaskRow).join('\n')}
+${backlogTasks.length > 0 ? backlogTasks.map(renderTaskRow).join('\n') : `| - | Additional features to be defined | ${config.agentMode === 'multi' ? '- | ' : ''}📋 BACKLOG | Based on PRD or requirements |`}
 
 ---
 
-## 📦 Epics Overview
+## 📦 Epics / Features Breakdown
 
-${epics.map((epic, idx) => `### ${idx + 1}. ${epic.name}
-${epic.description ? `**Description:** ${epic.description}\n` : ''}**Priority:** ${epic.priority}
-**Status:** 🔄 Planned
-`).join('\n')}
+${epics.map((epic, idx) => {
+  const epicTasks = epic.tasks && epic.tasks.length > 0 ? epic.tasks : generateTasksForEpic(epic);
+  return `**Epic ${idx + 1}: ${epic.name}**
+${epic.description ? `- **Description:** ${epic.description}\n` : ''}- **Priority:** ${epic.priority}
+- **Status:** 🔄 Planned
+- **Tasks:** ${epicTasks.length} tasks (${epicTasks.filter((_, i) => i < 2).length} active, ${epicTasks.length - 2} backlog)
+- **Acceptance Criteria:**
+  - Design and architecture documented
+  - Core functionality implemented
+  - Tests written and passing
+  - Documentation updated
+`;
+}).join('\n')}
+
+**Epic Template:**
+\`\`\`markdown
+**Epic #: Feature Name**
+- **Description:** What this epic delivers
+- **Priority:** HIGH | MEDIUM | LOW
+- **Status:** 🔄 Planned | 🚧 In Progress | ✅ Complete
+- **Tasks:** List of sub-tasks
+- **Acceptance Criteria:**
+  - Criterion 1
+  - Criterion 2
+\`\`\`
 
 ---
 
 ## ✅ Completed Tasks
 
-${tableHeader.replace('Status', 'Completed')}
-| 0 | Framework initialized | ${config.agentMode === 'multi' ? 'System | ' : ''}✅ Complete | HIGH | 1h | - | Setup |
+${tableHeader}
+| 0 | Framework initialized | ${config.agentMode === 'multi' ? 'System | ' : ''}✅ Complete | Agent coordination framework generated on ${currentDate} |
 
 ---
 
-## 📝 Task Template
+## 📝 Task Management Guidelines
 
-When adding new tasks:
+### Adding New Tasks
+
+1. **Assign Task Number:** Use next sequential number
+2. **Set Priority:** HIGH (critical) | MEDIUM (important) | LOW (nice-to-have)
+3. **Estimate Effort:** Be realistic (1-2h, 2-4h, 4-8h, 1-2d)
+4. **Identify Dependencies:** Link to prerequisite tasks (#N)
+5. **Assign Owner:** ${config.agentMode === 'multi' ? 'Specify agent based on file ownership zones' : 'Self-assign or leave blank'}
+
+### Task Status Legend
+
+- ⏳ **TODO** — Ready to start, no blockers
+- 🔄 **In Progress** — Currently being worked on
+- 🚧 **Blocked** — Waiting on dependency or external input
+- 📋 **BACKLOG** — Planned but not yet ready
+- ✅ **Complete** — Finished and verified
+
+### Task Detail Template
+
+When creating detailed task descriptions:
 
 \`\`\`markdown
-| # | Task Name | ${config.agentMode === 'multi' ? 'Agent | ' : ''}Status | Priority | Effort | Dependencies | Epic |
-\`\`\`
+**Task #XX: [Task Name]**
 
-**Task Details Template:**
-- **Description:** What needs to be done
-- **Acceptance Criteria:**
-  - [ ] Criterion 1
-  - [ ] Criterion 2
-- **Files to Modify:**
-  - path/to/file.ts
+**Description:** Clear explanation of what needs to be done
+
+**Acceptance Criteria:**
+- [ ] Specific, testable criterion 1
+- [ ] Specific, testable criterion 2
+- [ ] Documentation updated
+
+**Technical Requirements:**
+- Implementation details
+- Architecture decisions
+- Performance considerations
+
+**Files to Modify:**
+- \`path/to/file1.ts\` - What changes
+- \`path/to/file2.tsx\` - What changes
+
+**Dependencies:**
+- Task #XX must be complete first
+- Requires API keys / credentials / access
+
+**Testing:**
+- Unit tests for X
+- Integration tests for Y
+- Manual QA checklist
+\`\`\`
 
 ---
 
 ## 🔗 References
 
-- [PLAYBOOK.md](./.agent-framework/core/PLAYBOOK.md) - Agent coordination guide
-${config.agentMode === 'multi' ? '- [STATUS.md](./.agent-framework/core/STATUS.md) - Real-time coordination\n' : ''}- [RULES.md](./.agent-framework/core/RULES.md) - Project standards
+- [.agent-framework/README.md](./.agent-framework/README.md) — Framework overview and setup
+- [.agent-framework/core/PLAYBOOK.md](./.agent-framework/core/PLAYBOOK.md) — Agent coordination guide
+${config.agentMode === 'multi' ? '- [.agent-framework/core/STATUS.md](./.agent-framework/core/STATUS.md) — Real-time agent coordination\n' : ''}- [.agent-framework/core/RULES.md](./.agent-framework/core/RULES.md) — Project standards and conventions
+- [.agent-framework/core/CHANGELOG.md](./.agent-framework/core/CHANGELOG.md) — Release history
 
 ---
 
-**Generated by [agent-framework-template](https://github.com/andrelnunes/agent-framework-template)**
-**Built by André Nunes | Tekverso**
+**Generated by [agent-framework-template](https://github.com/andrelnunes/agent-framework-template) v1.0**
+**Built by [André Nunes](https://github.com/andrelnunes) | [Tekverso](https://tekverso.com)**
+**Framework initialized:** ${currentDate}
 `;
 }
 
@@ -1476,13 +1595,18 @@ async function interactiveBacklogCreation(config) {
  * Main backlog generation function with 3-tier fallback
  */
 async function generateBacklog(config) {
-  console.log(chalk.cyan('\n📋 Initializing backlog...\n'));
+  console.log(chalk.cyan('\n📋 Initializing backlog generation...\n'));
+  console.log(chalk.gray('Using 3-tier approach: Existing → PRD → Interactive\n'));
 
   // Tier 1: Check for existing backlog.md
+  console.log(chalk.cyan('🔍 Tier 1: Checking for existing backlog.md...'));
   if (fs.existsSync('backlog.md')) {
     const content = fs.readFileSync('backlog.md', 'utf8');
-    if (content.trim().length > 200) {  // Has substantial content
-      console.log(chalk.green('✅ Existing backlog.md found with content - preserving'));
+    const charCount = content.trim().length;
+    console.log(chalk.gray(`  → Found backlog.md (${charCount} characters)`));
+
+    if (charCount > 200) {  // Has substantial content
+      console.log(chalk.green('  ✓ Existing backlog has substantial content'));
       const { keepExisting } = await inquirer.prompt([{
         type: 'confirm',
         name: 'keepExisting',
@@ -1491,15 +1615,24 @@ async function generateBacklog(config) {
       }]);
 
       if (keepExisting) {
+        console.log(chalk.green('✅ Tier 1: Using existing backlog.md\n'));
         return content; // Return existing content
+      } else {
+        console.log(chalk.yellow('⚠️  Tier 1: User chose to regenerate backlog\n'));
       }
+    } else {
+      console.log(chalk.yellow('  ⚠️  Existing backlog is too short (< 200 chars), will regenerate\n'));
     }
+  } else {
+    console.log(chalk.gray('  → No backlog.md found\n'));
   }
 
   // Tier 2: Search for PRD
+  console.log(chalk.cyan('🔍 Tier 2: Searching for PRD file...'));
   const prdFile = findPRD();
   if (prdFile) {
-    console.log(chalk.yellow(`📄 Found PRD: ${prdFile}`));
+    console.log(chalk.yellow(`  → Found PRD: ${prdFile}`));
+
     const { usePRD } = await inquirer.prompt([{
       type: 'confirm',
       name: 'usePRD',
@@ -1512,29 +1645,43 @@ async function generateBacklog(config) {
 
       try {
         const prdContent = fs.readFileSync(prdFile, 'utf8');
+        const prdSize = (prdContent.length / 1024).toFixed(1);
+        spinner.text = `Reading PRD (${prdSize} KB) and extracting epics...`;
+
         const epics = extractEpicsFromPRD(prdContent);
 
         if (epics.length === 0) {
-          spinner.warn('No epics found in PRD - falling back to interactive mode');
+          spinner.warn('No epics found in PRD - falling back to Tier 3');
+          console.log(chalk.gray('  → PRD structure not recognized or no headers found\n'));
         } else {
           spinner.succeed(`Extracted ${epics.length} epics from PRD`);
+          console.log(chalk.green(`  ✓ Epics found: ${epics.map(e => e.name).join(', ')}`));
 
           // Generate tasks for each epic
-          epics.forEach(epic => {
+          console.log(chalk.cyan('\n  📝 Generating tasks for each epic...'));
+          epics.forEach((epic, idx) => {
             epic.tasks = generateTasksForEpic(epic);
+            console.log(chalk.gray(`    ${idx + 1}. ${epic.name}: ${epic.tasks.length} tasks`));
           });
 
+          console.log(chalk.green('\n✅ Tier 2: Backlog generated from PRD\n'));
           return generateBacklogContent(epics, config);
         }
       } catch (error) {
         spinner.fail('Failed to read PRD file');
-        console.error(chalk.red(`Error: ${error.message}`));
+        console.error(chalk.red(`  ✗ Error: ${error.message}\n`));
       }
+    } else {
+      console.log(chalk.gray('  → User declined PRD generation\n'));
     }
+  } else {
+    console.log(chalk.gray('  → No PRD file found\n'));
   }
 
   // Tier 3: Interactive capture
-  console.log(chalk.gray('No existing backlog or PRD found.'));
+  console.log(chalk.cyan('🔍 Tier 3: Interactive backlog creation'));
+  console.log(chalk.gray('No existing backlog or PRD found, or user declined automated generation.\n'));
+
   const { createInteractive } = await inquirer.prompt([{
     type: 'confirm',
     name: 'createInteractive',
@@ -1543,6 +1690,7 @@ async function generateBacklog(config) {
   }]);
 
   if (createInteractive) {
+    console.log(chalk.green('  ✓ Starting interactive wizard...\n'));
     const epics = await interactiveBacklogCreation(config);
     return generateBacklogContent(epics, config);
   } else {
