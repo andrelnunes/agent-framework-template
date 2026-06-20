@@ -1,573 +1,232 @@
-# Multi-Agent Coordination Framework
+# Agent Framework — Spec-Driven Engineering Kit (v2)
 
-A universal framework for coordinating multiple AI agents (Claude Code, Cursor, OpenAI Codex) working in parallel on software development projects.
+A drop-in configuration that makes a repository **govern its own workflow** when AI agents
+(Claude Code, Cursor, OpenAI Codex) work on it. Every change flows the same way:
 
-## 🎯 Features
+> **PRD → backlog task → `feat/*` branch → implement → quality gate → pull request → review**
 
-- **Multi-Agent Support:** Coordinate 2-10 AI agents working simultaneously
-- **Single-Agent Mode:** Simplified workflow for solo development
-- **File Reservation System:** Prevent conflicts with 4-hour max locks
-- **Real-Time Coordination:** Dashboard for agent status and blockers
-- **Platform Agnostic:** Works with Claude Code, Cursor, and OpenAI Codex
-- **Interactive Setup:** 5-minute quick start or 15-minute full customization
-- **Intelligent Backlog:** Auto-generates tasks from PRD or interactive input
-- **Pre-Commit Hooks:** Optional enforcement of framework protocols
-- **Zero Dependencies:** Framework files are plain markdown
+…with the branch model and quality bar **enforced by git hooks and CI**, not left to an
+agent's memory. Parallelism comes from **git worktrees** (one isolated checkout per task),
+not from soft file-locks.
+
+Works in a **brand-new project** and in an **existing codebase** alike.
 
 ## 👨‍💻 Author
 
 **Built by [André Nunes](https://github.com/andrelnunes) | [Tekverso](https://tekverso.com)**
+Software architect and AI automation specialist.
+[LinkedIn](https://www.linkedin.com/in/andrelnunes/) · [GitHub](https://github.com/andrelnunes) · [Instagram](https://instagram.com/andrenunes.tech)
 
-Software architect and AI automation specialist. Follow for more tools and insights:
-- 💼 [LinkedIn](https://www.linkedin.com/in/andrelnunes/)
-- 🐙 [GitHub](https://github.com/andrelnunes)
-- 📸 [Instagram](https://instagram.com/andrenunes.tech)
+---
 
-**Need help?** Tekverso provides consulting for AI agent workflows and development automation.
+## Why v2 (what changed from v1)
 
-## 🚀 Quick Start
+v1 coordinated agents with a **file-reservation system** — soft locks in a `STATUS.md`,
+4-hour leases, heartbeats. It only worked if every agent cooperated, and it was fragile.
 
-### Installation
+v2 replaces *coordination by convention* with *coordination by construction*:
+
+| v1 (removed) | v2 (this kit) |
+|---|---|
+| File reservations in `STATUS.md`, heartbeats, leases | **Git worktrees** — one real checkout per task, zero shared state |
+| Prose "Pre-Task / Post-Task checklists" | **Enforced hooks** (branch guard) + **CI** (PR validation) |
+| `RULES.md`, `PLAYBOOK.md`, `CHANGELOG.md` scattered | One **`CLAUDE.md`** constitution + Claude Code skills |
+| "Remember to follow the protocol" | The protocol is a `/spec-flow` command and a blocking hook |
+
+> Migrating an existing v1 project? See **[MIGRATION.md](MIGRATION.md)**.
+
+---
+
+## What gets installed
+
+```
+your-repo/
+├── CLAUDE.md                         # the constitution — branch rules, the loop, Definition of Done
+├── .claude/
+│   ├── settings.json                 # hooks: branch guard (PreToolUse) + auto-format (PostToolUse)
+│   ├── scripts/
+│   │   ├── guard-branch.sh           # blocks commits/pushes on main & develop
+│   │   ├── quality-gate.sh           # lint → typecheck → test (CI parity, run before commit)
+│   │   └── worktree.sh               # one isolated git worktree per task (parallel execution)
+│   ├── agents/
+│   │   ├── feature-implementer.md    # executes one task on its own feat/* branch (parallelizable)
+│   │   └── spec-reviewer.md          # fresh-context review vs. acceptance criteria
+│   └── skills/
+│       ├── spec-backlog/             # PRD → executable backlog          (/spec-backlog)
+│       ├── task-execute/             # task → branch + implement + gate  (/task-execute)
+│       ├── ship-pr/                  # commit → PR to develop (template) (/ship-pr)
+│       └── spec-flow/                # orchestrates the whole chain       (/spec-flow)
+├── .github/
+│   ├── pull_request_template.md      # required PR description pattern
+│   ├── CODEOWNERS                    # review required on .claude/ & .github/
+│   └── workflows/pr-validation.yml   # CI: branch name + PR desc + lint/types/test/build
+├── docs/
+│   ├── {feature}-prd.md              # PRDs land here
+│   └── backlog/{feature}.md          # backlog files land here (the source of truth)
+└── AGENTS.md, .cursorrules           # (optional) Cursor / Codex / Copilot compat layer
+```
+
+---
+
+## Install
+
+### Option A — one command (recommended)
 
 ```bash
-# Clone or download this repository
-cd your-project
+# into the current directory (new or existing project):
+npx agent-framework-template
 
-# Run initialization script
-npx agent-framework-template init
+# or into a specific path:
+npx agent-framework-template ./my-project --compat
 
-# Or if you have it locally:
-node /path/to/agent-framework-template/init.js
+# from a local clone:
+node /path/to/agent-framework-template/init.js ./my-project --compat
 ```
 
-### Choose Your Mode
+The installer is **dependency-free** (Node 18+). It:
+- copies `CLAUDE.md`, `.claude/`, `.github/`, `docs/` into the target,
+- makes the scripts executable,
+- adds placeholder `lint`/`typecheck`/`test` scripts to `package.json` if missing (so the
+  gates have something to run — replace them with real ones),
+- creates the `develop` branch (skip with `--no-git`),
+- never overwrites your existing files unless you pass `--force`,
+- optionally drops the Cursor/Codex compat layer with `--compat`.
 
-**Quick Start (5 minutes):**
-- 10 essential questions
-- Smart defaults
-- Ready to go immediately
+Useful flags: `--dry-run` (preview), `--yes` (non-interactive), `--force`, `--no-git`,
+`--help`.
 
-**Full Wizard (15 minutes):**
-- Complete customization
-- Advanced configuration
-- Perfect for complex projects
+### Option B — copy manually
 
-### Initialization Process
+1. Copy `CLAUDE.md`, `.claude/`, `.github/`, and `docs/` into your repo root.
+2. `chmod +x .claude/scripts/*.sh`
+3. Create the branches once: `git switch -c develop && git push -u origin develop`.
 
-The script will ask you:
+Either way, define real scripts in `package.json` so the gates do real work
+(any missing script is simply skipped):
 
-1. **Project basics** - Name, description
-2. **Agent configuration** - Single or multi-agent
-3. **Tech stack** - Framework, database, tools
-4. **Directory structure** - Frontend, backend, tests
-5. **Git workflow** - Branch names, commit format
-6. **Optional features** - Pre-commit hooks, platform configs
-
-### What Gets Generated
-
-```
-your-project/
-├── .agent-framework/
-│   ├── README.md              # Framework overview
-│   └── core/
-│       ├── PLAYBOOK.md        # Agent coordination guide
-│       ├── STATUS.md          # Real-time dashboard (multi-agent)
-│       ├── RULES.md           # Project standards
-│       └── CHANGELOG.md       # Release history
-├── backlog.md                 # Task tracking (intelligently generated!)
-└── .git/hooks/pre-commit      # Optional compliance checks
+```json
+{ "scripts": { "lint": "eslint .", "typecheck": "tsc --noEmit", "test": "vitest run", "build": "tsc -b" } }
 ```
 
-### Intelligent Backlog Generation
+---
 
-The framework automatically creates actionable tasks using a **3-tier approach**:
+## Server-side enforcement (one-time, in the GitHub UI)
 
-#### Tier 1: Existing Backlog ✅
-- Detects existing `backlog.md` with content
-- Preserves your current work
-- Asks before overwriting
+Hooks stop a *local* bad commit; **branch protection** is what enforces the rules on the
+remote. Under **Settings → Branches → Add rule** (or Rulesets):
 
-#### Tier 2: PRD-Based Generation 🤖
-- Searches for PRD files (`PRD.md`, `requirements.md`, etc.)
-- Extracts epics and features automatically
-- Generates tasks with priorities and estimates
-- Works with markdown headers or numbered lists
+**`main`**
+- Require a pull request before merging · require approvals (≥1) · require Code Owner review
+- Require status checks: `branch-name`, `pr-description-check`, `validate`
+- No force-push, no deletion · (optional) only allow PRs into `main` from `develop`
 
-**Example:** If you have this in `docs/PRD.md`:
-```markdown
-## User Authentication
-## Dashboard
-## Analytics
+**`develop`**
+- Require a pull request before merging · require approvals (≥1)
+- Require the same status checks · no direct pushes
+
+That closes the loop: agents work only on `feat/*`, every change reaches `develop` then
+`main` through a reviewed PR with green checks.
+
+---
+
+## Daily use (Claude Code)
+
+```text
+/spec-flow  "<feature idea>"     # idea → PRD → backlog → execution → PRs (pauses at human gates)
 ```
 
-Framework generates:
-- Epic 1: User Authentication → 6 tasks (design, backend, frontend, tests, etc.)
-- Epic 2: Dashboard → 6 tasks
-- Epic 3: Analytics → 6 tasks
+Or step through it:
 
-#### Tier 3: Interactive Capture 💬
-- No PRD? No problem!
-- Wizard asks for your epics/features
-- Suggests task breakdown
-- Creates structured backlog
-
-**Example conversation:**
-```
-How many main features/epics? 3
-Epic #1: User login
-  Priority? HIGH
-  → Generated 6 tasks automatically
-
-Epic #2: Dashboard
-  Priority? MEDIUM
-  → Generated 6 tasks automatically
+```text
+product-requirements             # → docs/{feature}-prd.md   (PRD skill)
+/spec-backlog  <feature>         # → docs/backlog/{feature}.md  (tasks w/ ids, AC, deps)
+/task-execute  WND-03            # branch from develop + implement + quality gate + commit
+/ship-pr       WND-03            # push + open PR to develop (template filled, task linked)
 ```
 
-Result: **18 actionable tasks ready to assign** to your agents!
-
-## 📚 Platform Setup
-
-### Claude Code
-
-1. **Initialize framework** in your project
-2. **Start Claude Code** in the project directory
-3. **Tell Claude:**
-   ```
-   Read .agent-framework/core/PLAYBOOK.md and follow the
-   framework protocols for all tasks. Start with Task #1 from backlog.md
-   ```
-
-Claude will automatically:
-- Read coordination files before starting work
-- Reserve files to prevent conflicts
-- Update status and backlog
-- Follow commit message format
-- Release resources when done
-
-### Cursor
-
-1. **Initialize framework** in your project
-2. **Create `.cursorrules` file:**
-
-```markdown
-# Agent Framework Rules
-
-CRITICAL: Before starting ANY task, you MUST:
-
-1. Read .agent-framework/core/PLAYBOOK.md (coordination guide)
-2. Read backlog.md (current tasks and priorities)
-3. Read .agent-framework/core/STATUS.md (agent coordination)
-4. Read .agent-framework/core/RULES.md (project standards)
-
-Follow all Pre-Task and Post-Task checklists exactly as specified.
-
-## File Reservations
-
-- Check STATUS.md for file reservations
-- Reserve files before modifying (max 4 hours)
-- Release immediately when done
-- NEVER modify files reserved by another agent
-
-## Commit Format
-
-Follow the format specified in RULES.md:
-type(scope): subject
-
-Types: feat, fix, docs, style, refactor, test, chore
-
-## Updates Required
-
-After completing any task:
-- Update backlog.md (mark complete)
-- Update CHANGELOG.md (user-facing changes)
-- Update STATUS.md (release files, move to completions)
-```
-
-3. **Start agent:**
-   ```
-   Follow the agent framework and work on Task #1 from backlog.md
-   ```
-
-### OpenAI Codex / GitHub Copilot
-
-1. **Initialize framework** in your project
-2. **Set custom instructions:**
-
-```
-You are an AI agent working with the multi-agent coordination framework.
-
-BEFORE starting ANY task:
-1. Read .agent-framework/core/PLAYBOOK.md
-2. Read backlog.md for current task details
-3. Read .agent-framework/core/STATUS.md for coordination
-4. Follow all protocols exactly
-
-DURING work:
-- Update STATUS.md with heartbeat every 2 hours
-- Commit frequently with proper format
-- Report blockers immediately
-
-AFTER completing:
-- Update backlog.md (mark complete)
-- Update CHANGELOG.md if user-facing
-- Update STATUS.md (release files)
-- Follow Post-Task checklist completely
-```
-
-3. **Start with:**
-   ```
-   Read the agent framework and work on Task #1
-   ```
-
-## 🧩 Framework Concepts
-
-### File Reservation System
-
-**Purpose:** Prevent multiple agents from modifying the same file simultaneously
-
-**How it works:**
-1. Before modifying any file, agent checks `STATUS.md`
-2. If file is not reserved, agent adds reservation entry
-3. Agent works on file (max 4 hours)
-4. Agent releases reservation when done
-
-**Rules:**
-- Maximum 4-hour reservations
-- Must release immediately when done
-- Never modify files reserved by another agent
-- Auto-expire after time limit
-
-### Pre-Task & Post-Task Protocols
-
-**Pre-Task Checklist (MANDATORY):**
-1. Read all coordination files
-2. Verify task readiness and dependencies
-3. Reserve resources (files, databases)
-4. Pull latest code
-
-**Post-Task Checklist (MANDATORY):**
-1. Verify quality (tests, build, linting)
-2. Update documentation (backlog, changelog, status)
-3. Commit and push with proper format
-4. Communicate completion to team
-
-### Agent Roles & Zones
-
-**Frontend Agent:**
-- Owns: `src/components/`, `src/pages/`, `src/styles/`
-- Responsibilities: UI/UX, components, styling
-
-**Backend Agent:**
-- Owns: `server/`, `api/`, `migrations/`
-- Responsibilities: API, database, business logic
-
-**Docs Agent:**
-- Owns: `*.md`, `.agent-framework/`
-- Responsibilities: Documentation, coordination
-
-**QA Agent:**
-- Owns: `tests/`, `e2e/`
-- Responsibilities: Testing, quality assurance
-
-**Shared Zone:**
-- Files: `package.json`, `README.md`, `tsconfig.json`
-- Rule: Requires coordination before modifying
-
-## 🎨 Customization
-
-### Modify Agent Roles
-
-Edit `.agent-framework/core/PLAYBOOK.md`:
-
-```markdown
-### Custom-Agent-1 (Data Science)
-
-**Responsibilities:**
-- Data pipeline development
-- ML model training
-- Feature engineering
-
-**File Ownership Zones:**
-- `data/**/*`
-- `models/**/*`
-- `notebooks/**/*`
-```
-
-### Change File Ownership
-
-Edit `.agent-framework/core/RULES.md`:
-
-```markdown
-**Frontend Zone:**
-- src/client/**
-- src/components/**
-- src/styles/**
-
-**Backend Zone:**
-- src/server/**
-- src/api/**
-- database/**
-
-**Shared Zone:**
-- package.json
-- tsconfig.json
-- .env.example
-```
-
-### Update Commit Format
-
-Edit `.agent-framework/core/RULES.md`:
-
-```markdown
-### Commit Message Format
-
-**Format:** `[TYPE] Subject (#task-number)`
-
-**Types:**
-- [FEAT] New feature
-- [FIX] Bug fix
-- [DOCS] Documentation
-- [TEST] Tests
-
-**Example:**
-`[FEAT] Add user authentication (#42)`
-```
-
-## 🧪 Testing
-
-Test the framework in a separate directory:
+### Parallel work — one worktree per independent task
 
 ```bash
-# Create test project
-mkdir /tmp/test-framework
-cd /tmp/test-framework
-git init
-
-# Run initialization
-node /path/to/agent-framework-template/init.js
-
-# Verify generated files
-ls -la .agent-framework/
-cat backlog.md
-cat .agent-framework/README.md
-
-# Test with agent
-# (Start Claude Code, Cursor, or Codex and follow platform setup)
+.claude/scripts/worktree.sh new  WND-01      # isolated checkout on feat/wnd-01 from develop
+.claude/scripts/worktree.sh new  WND-03      # disjoint files → safe to run at the same time
+.claude/scripts/worktree.sh list
+.claude/scripts/worktree.sh rm   WND-01 --branch   # after its PR merges
 ```
 
-## 📋 Example Workflows
+Tasks whose **`Touches:`** files overlap (flagged in the backlog) run **sequentially** —
+that's how v2 avoids merge conflicts without the old reservation system. The orchestrator
+spawns one `feature-implementer` subagent per task in the parallel set.
 
-### Scenario 1: Frontend Agent Starts New Feature
+---
 
-```bash
-# Agent reads coordination files
-cat .agent-framework/core/PLAYBOOK.md
-cat backlog.md
-cat .agent-framework/core/STATUS.md
+## The spec-driven loop
 
-# Agent finds Task #5: Add user profile page
-# Checks dependencies: Task #4 (Auth) is complete ✅
-# Checks file reservations: No conflicts ✅
+| Step | Command / Skill | Input → Output |
+|------|-----------------|----------------|
+| 1. Define the spec | `product-requirements` | idea → `docs/{feature}-prd.md` |
+| 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks, AC, deps) |
+| 3. Execute a task | `/task-execute <id>` | task → branch + implementation + passing gates |
+| 4. Ship it | `/ship-pr <id>` | commit + PR to `develop` (template, linked task) |
+| 5. Review | `spec-reviewer` agent + `engineering:code-review` | diff → findings |
 
-# Agent updates STATUS.md:
-# | Frontend-1 | Frontend | ACTIVE | Task #5 | HIGH | 14:00 UTC | 10:30 UTC | Working on profile page |
-# | src/pages/Profile.tsx | Frontend-1 | Task #5 | 14:30 UTC | ACTIVE | New file |
+**Definition of Done** (from `CLAUDE.md`): every acceptance criterion met · `lint`/`typecheck`/`test`
+green locally · Conventional Commit on a correctly-named branch · PR to `develop` with the
+template filled · a fresh-context review found no blocking gaps.
 
-# Agent works on feature...
+---
 
-# Agent completes work and updates files:
-# - backlog.md: Task #5 → Complete
-# - CHANGELOG.md: ## [Unreleased] ### Added - User profile page
-# - STATUS.md: Move to Recent Completions, release files
+## Other tools — Cursor, OpenAI Codex, Copilot
 
-# Agent commits:
-git commit -m "feat(profile): Add user profile page
+Install with `--compat` to get a plain-markdown mirror of the rules:
 
-- Create Profile component
-- Add profile route
-- Implement edit functionality
+- **`AGENTS.md`** — the cross-tool rule set (the loop, hard rules, Definition of Done).
+- **`.cursorrules`** — point Cursor at it; it enforces the same branch model and gates.
+- **Codex / Copilot** — paste the "Hard rules" + "Definition of Done" from `AGENTS.md` into
+  your custom instructions.
 
-Refs: #5"
-```
+The enforcement layer (blocking hooks, CI) is shared regardless of which agent edits the
+code, because it lives in git and GitHub — not in any one tool.
 
-### Scenario 2: Backend Agent Encounters Blocker
+---
 
-```bash
-# Agent reads files and starts Task #12: Implement payment API
-# Discovers missing Stripe API keys
+## Customization
 
-# Agent updates STATUS.md immediately:
-# ## ISSUES & BLOCKERS
-# ### 🔴 Critical Issues
-# - **Task #12 BLOCKED:** Missing Stripe API keys in .env
-#   - Impact: Cannot test payment integration
-#   - Required: STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY
-#   - Action: Need access from project owner
+- **Branch names, commit format, Definition of Done** → edit `CLAUDE.md` (one source of truth).
+- **What the quality gate runs** → it calls your `package.json` scripts; change those.
+- **Protected branches / regex** → `PROTECTED_REGEX` in `.claude/scripts/guard-branch.sh`
+  and the checks in `.github/workflows/pr-validation.yml`.
+- **PR sections required by CI** → the `required` array in `pr-validation.yml` and the
+  headings in `.github/pull_request_template.md` (keep them in sync).
+- **Subagent model** → `CLAUDE_CODE_SUBAGENT_MODEL` in `.claude/settings.json`.
 
-# Agent updates backlog.md:
-# | 12 | Payment API | Backend-1 | BLOCKED | HIGH | 4h | ... | Waiting for Stripe keys |
+---
 
-# Other agents see blocker and avoid dependent tasks
-# Project owner provides keys
-# Backend agent resumes work
-```
+## Troubleshooting
 
-### Scenario 3: Two Agents Coordinate on Shared File
+**"My commit was blocked."** You're on `main` or `develop`. Cut a branch:
+`git switch develop && git pull && git switch -c feat/<name>`. That's the branch guard doing
+its job — don't bypass it.
 
-```bash
-# Frontend-1 needs to update package.json (shared zone)
-# Checks STATUS.md: No reservation on package.json ✅
+**"The quality gate skipped everything."** It only runs scripts that exist in `package.json`.
+Add real `lint`/`typecheck`/`test` scripts.
 
-# Frontend-1 adds to COORDINATION REQUESTS:
-# | File Modification | Frontend-1 | All | PENDING | MEDIUM | Need to add react-query to package.json for Task #8 |
+**"CI fails on `pr-description-check`."** Fill *every* section of the PR template and include a
+backlog task id (e.g. `WND-03`) in the body.
 
-# Backend-1 sees request, no objection
-# Docs-1 approves
+**"Scripts aren't executable."** `chmod +x .claude/scripts/*.sh`.
 
-# Frontend-1 reserves and modifies:
-# | package.json | Frontend-1 | Task #8 | 15:30 UTC | ACTIVE | Adding react-query |
+---
 
-# Makes change, commits, releases
-# Updates STATUS.md: Request → Complete
-```
+## License
 
-## 🔧 Advanced Configuration
-
-### Custom Pre-Commit Hooks
-
-Edit `.git/hooks/pre-commit`:
-
-```bash
-#!/bin/bash
-
-# Custom check: Ensure API documentation is updated
-if git diff --cached --name-only | grep -q "src/api/"; then
-  if ! git diff --cached --name-only | grep -q "docs/api.md"; then
-    echo "⚠️ API files changed but docs/api.md not updated"
-    read -p "Continue? (y/n) " -r
-    [[ ! $REPLY =~ ^[Yy]$ ]] && exit 1
-  fi
-fi
-
-# Custom check: Validate test coverage
-npm test -- --coverage --silent
-if [ $? -ne 0 ]; then
-  echo "❌ Tests failing or coverage below threshold"
-  exit 1
-fi
-
-echo "✅ Custom checks passed"
-```
-
-### Multi-Environment Configuration
-
-Create environment-specific configs:
-
-```bash
-.agent-framework/
-├── core/
-│   ├── PLAYBOOK.md
-│   ├── PLAYBOOK.production.md  # Stricter protocols
-│   ├── PLAYBOOK.development.md # Relaxed protocols
-│   └── ...
-```
-
-### Integration with CI/CD
-
-Add framework checks to CI pipeline:
-
-```yaml
-# .github/workflows/framework-check.yml
-name: Agent Framework Compliance
-
-on: [pull_request]
-
-jobs:
-  check-framework:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Verify backlog updated
-        run: |
-          if ! git diff origin/main --name-only | grep -q "backlog.md"; then
-            echo "❌ backlog.md not updated"
-            exit 1
-          fi
-
-      - name: Verify changelog updated
-        run: |
-          if ! git diff origin/main --name-only | grep -q "CHANGELOG.md"; then
-            echo "⚠️ CHANGELOG.md not updated (warning only)"
-          fi
-```
-
-## 🆘 Troubleshooting
-
-### Issue: Agents not following protocols
-
-**Solution:**
-1. Ensure agents read PLAYBOOK.md at start of every session
-2. Add explicit reminder in task description: "Follow .agent-framework protocols"
-3. Enable pre-commit hooks for enforcement
-
-### Issue: File conflicts between agents
-
-**Solution:**
-1. Check STATUS.md before modifying files
-2. Reserve files immediately when starting work
-3. Use shorter reservation periods (2h instead of 4h)
-4. Communicate in COORDINATION REQUESTS for shared files
-
-### Issue: Pre-commit hooks failing
-
-**Solution:**
-1. Check hook permissions: `chmod +x .git/hooks/pre-commit`
-2. Verify bash syntax in hook script
-3. Test hook manually: `.git/hooks/pre-commit`
-4. Disable temporarily: `git commit --no-verify` (not recommended)
-
-## 📖 Resources
-
-- **[PLAYBOOK.md Template](templates/PLAYBOOK.template.md)** - Full agent coordination guide
-- **[STATUS.md Template](templates/STATUS.template.md)** - Real-time dashboard
-- **[RULES.md Template](templates/RULES.template.md)** - Project standards
-- **[Example Configs](examples/)** - Sample project configurations
-
-## 🤝 Contributing
-
-To improve this framework:
-
-1. Fork the repository
-2. Create feature branch
-3. Add improvements
-4. Test with multiple agents
-5. Submit pull request
-
-## 📄 License
-
-Business Source License 1.1 - see [LICENSE](LICENSE) file
-
-This software will automatically convert to Apache License 2.0 on November 25, 2029.
-
-**What this means:**
-- ✅ Free to use in your projects (commercial or personal)
-- ✅ Modify and customize as needed
-- ✅ Required to include copyright notice
-- ❌ Cannot offer as competing framework-as-a-service
-
-## 🙏 Acknowledgments
-
-Based on real-world experience coordinating 4+ AI agents on production SaaS projects.
+Business Source License 1.1 — see [LICENSE](LICENSE). Converts to Apache 2.0 on 2029-11-25.
+Free for commercial and personal use; you may not offer it as a competing
+framework-as-a-service.
 
 ---
 
 **Built by [André Nunes](https://github.com/andrelnunes) | [Tekverso](https://tekverso.com)**
+**Version:** 2.0.0 · **Platforms:** Claude Code (native) · Cursor · OpenAI Codex · Copilot (compat)
 
-**Version:** 1.0.0
-**Generated:** 2025-11-22
-**Platform Support:** Claude Code, Cursor, OpenAI Codex, GitHub Copilot
-
-Licensed under Business Source License 1.1 - see [LICENSE](LICENSE) file
-
-**Questions?** Open an issue at [github.com/andrelnunes/agent-framework-template](https://github.com/andrelnunes/agent-framework-template/issues)
+Questions? Open an issue at
+[github.com/andrelnunes/agent-framework-template](https://github.com/andrelnunes/agent-framework-template/issues)
