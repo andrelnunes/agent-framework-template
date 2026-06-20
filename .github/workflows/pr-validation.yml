@@ -59,37 +59,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Detect package manager
+      - name: Detect package manager & lockfile
         id: pm
         run: |
-          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >>$GITHUB_OUTPUT;
-          elif [ -f yarn.lock ]; then echo "pm=yarn" >>$GITHUB_OUTPUT;
-          else echo "pm=npm" >>$GITHUB_OUTPUT; fi
+          # node=false → no package.json, the whole JS validation is skipped.
+          if [ ! -f package.json ]; then
+            echo "node=false" >>$GITHUB_OUTPUT
+            echo "no package.json — JS validation skipped"
+            exit 0
+          fi
+          echo "node=true" >>$GITHUB_OUTPUT
+          if   [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
+          elif [ -f yarn.lock ];      then echo "pm=yarn" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
+          elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then echo "pm=npm" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
+          else echo "pm=npm" >>$GITHUB_OUTPUT; echo "lock=false" >>$GITHUB_OUTPUT; fi
 
-      - if: steps.pm.outputs.pm == 'pnpm'
+      - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.pm == 'pnpm'
         uses: pnpm/action-setup@v4
         with: { version: 9 }
 
-      - uses: actions/setup-node@v4
+      # Enable dependency caching only when a lockfile exists (setup-node requires one).
+      - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.lock == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: ${{ steps.pm.outputs.pm }}
+      - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.lock == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Install
+        if: steps.pm.outputs.node == 'true'
         run: |
-          case "${{ steps.pm.outputs.pm }}" in
-            pnpm) pnpm install --frozen-lockfile ;;
-            yarn) yarn install --frozen-lockfile ;;
-            npm)  npm ci ;;
-          esac
+          if [ "${{ steps.pm.outputs.lock }}" = "true" ]; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm install --frozen-lockfile ;;
+              yarn) yarn install --frozen-lockfile ;;
+              npm)  npm ci ;;
+            esac
+          else
+            echo "no lockfile — running a non-frozen install"
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm install ;;
+              yarn) yarn install ;;
+              npm)  npm install --no-audit --no-fund ;;
+            esac
+          fi
 
-      # Each step runs only if the corresponding package.json script exists, so the
-      # workflow is drop-in regardless of which scripts a given repo defines.
+      # Each step runs only if there's a package.json AND the corresponding script exists,
+      # so the workflow is drop-in regardless of stack or which scripts a repo defines.
       - name: Lint
+        if: steps.pm.outputs.node == 'true'
         run: node -e "process.exit(require('./package.json').scripts?.lint?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run lint' || format('{0} lint', steps.pm.outputs.pm) }} || echo "no lint script — skipped"
       - name: Typecheck
+        if: steps.pm.outputs.node == 'true'
         run: node -e "process.exit(require('./package.json').scripts?.typecheck?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run typecheck' || format('{0} typecheck', steps.pm.outputs.pm) }} || echo "no typecheck script — skipped"
       - name: Test
+        if: steps.pm.outputs.node == 'true'
         run: node -e "process.exit(require('./package.json').scripts?.test?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm test' || format('{0} test', steps.pm.outputs.pm) }} || echo "no test script — skipped"
       - name: Build
+        if: steps.pm.outputs.node == 'true'
         run: node -e "process.exit(require('./package.json').scripts?.build?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run build' || format('{0} build', steps.pm.outputs.pm) }} || echo "no build script — skipped"
