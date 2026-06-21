@@ -53,11 +53,16 @@ jobs:
             // a test file path or the task-id test tag. Enforces "every criterion has a test".
             const acIdx = body.indexOf("## Acceptance criteria");
             if (acIdx !== -1) {
-              const after = body.slice(acIdx);
-              const acSection = after.slice(0, (after.slice(2).indexOf("\n## ") + 2) || after.length);
-              const mentionsTest = /\.(test|spec|feature)\b|test[\/\\]|tests[\/\\]|::|→\s*`/.test(acSection)
+              // Slice from this heading to the next "## " heading (or end of body).
+              const rest = body.slice(acIdx + 2);          // skip the leading "##"
+              const nextRel = rest.indexOf("\n## ");
+              const acSection = nextRel === -1 ? body.slice(acIdx) : body.slice(acIdx, acIdx + 2 + nextRel);
+              const mentionsTest = /\.(test|spec|feature)\b/.test(acSection)
+                || /tests?[\/\\]/.test(acSection)
+                || /::/.test(acSection)
+                || /→\s*`/.test(acSection)
                 || (taskId && new RegExp(`${taskId}:`).test(acSection));
-              if (!mentionsTest) core.setFailed("Acceptance criteria must map to tests — reference the acceptance test (file or task-id tag) for each criterion.");
+              if (!mentionsTest) core.setFailed("Acceptance criteria must map to tests — reference the acceptance test (file path or task-id tag, e.g. tests/x.test.js or 'WND-03: …') for each criterion.");
             }
 
             // Reject a body that still contains the template's instructional comments unfilled.
