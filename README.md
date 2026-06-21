@@ -3,11 +3,16 @@
 A drop-in configuration that makes a repository **govern its own workflow** when AI agents
 (Claude Code, Cursor, OpenAI Codex) work on it. Every change flows the same way:
 
-> **PRD → backlog task → `feat/*` branch → implement → quality gate → pull request → review**
+> **PRD → backlog task → `feat/*` branch → acceptance tests (from the spec) → implement → quality gate → pull request → review**
 
 …with the branch model and quality bar **enforced by git hooks and CI**, not left to an
 agent's memory. Parallelism comes from **git worktrees** (one isolated checkout per task),
 not from soft file-locks.
+
+**Test-gated by design:** when a task is taken, the agent first writes acceptance tests
+derived from the spec (the backlog task's acceptance criteria, traced to the PRD). A task is
+**not done — and the agent cannot commit — until those tests exist and pass.** The quality
+gate and CI both enforce this.
 
 Works in a **brand-new project** and in an **existing codebase** alike.
 
@@ -46,7 +51,7 @@ your-repo/
 │   ├── settings.json                 # hooks: branch guard (PreToolUse) + auto-format (PostToolUse)
 │   ├── scripts/
 │   │   ├── guard-branch.sh           # blocks commits/pushes on main & develop
-│   │   ├── quality-gate.sh           # lint → typecheck → test (CI parity, run before commit)
+│   │   ├── quality-gate.sh           # acceptance-test check → lint → typecheck → test (run before commit)
 │   │   └── worktree.sh               # one isolated git worktree per task (parallel execution)
 │   ├── agents/
 │   │   ├── feature-implementer.md    # executes one task on its own feat/* branch (parallelizable)
@@ -139,10 +144,15 @@ Or step through it:
 
 ```text
 product-requirements             # → docs/{feature}-prd.md   (PRD skill)
-/spec-backlog  <feature>         # → docs/backlog/{feature}.md  (tasks w/ ids, AC, deps)
-/task-execute  WND-03            # branch from develop + implement + quality gate + commit
-/ship-pr       WND-03            # push + open PR to develop (template filled, task linked)
+/spec-backlog  <feature>         # → docs/backlog/{feature}.md  (tasks w/ ids, AC, acceptance-test plan, deps)
+/task-execute  WND-03            # branch → write acceptance tests (from spec) → implement → gate → commit
+/ship-pr       WND-03            # push + open PR to develop (template filled, task linked, tests mapped)
 ```
+
+`/task-execute` is **test-first**: it derives an acceptance test from each acceptance
+criterion (tagged with the task id), implements until they're green, then runs
+`.claude/scripts/quality-gate.sh WND-03` — which **refuses the commit** unless a test
+references the task id and the whole suite passes.
 
 ### Parallel work — one worktree per independent task
 
@@ -164,14 +174,53 @@ spawns one `feature-implementer` subagent per task in the parallel set.
 | Step | Command / Skill | Input → Output |
 |------|-----------------|----------------|
 | 1. Define the spec | `product-requirements` | idea → `docs/{feature}-prd.md` |
-| 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks, AC, deps) |
-| 3. Execute a task | `/task-execute <id>` | task → branch + implementation + passing gates |
-| 4. Ship it | `/ship-pr <id>` | commit + PR to `develop` (template, linked task) |
-| 5. Review | `spec-reviewer` agent + `engineering:code-review` | diff → findings |
+| 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks, AC, **acceptance-test plan**, deps) |
+| 3. Execute a task | `/task-execute <id>` | task → branch + **acceptance tests (from spec, first)** + implementation + green gate + commit |
+| 4. Ship it | `/ship-pr <id>` | commit + PR to `develop` (template, linked task, criteria→tests) |
+| 5. Review | `spec-reviewer` agent + `engineering:code-review` | each criterion ↔ passing test + findings |
 
-**Definition of Done** (from `CLAUDE.md`): every acceptance criterion met · `lint`/`typecheck`/`test`
-green locally · Conventional Commit on a correctly-named branch · PR to `develop` with the
-template filled · a fresh-context review found no blocking gaps.
+**Definition of Done** (from `CLAUDE.md`): **spec-derived acceptance tests exist (one per
+criterion, tagged with the task id) and pass** · every acceptance criterion met ·
+`.claude/scripts/quality-gate.sh <id>` green (acceptance check + lint/typecheck/test) ·
+Conventional Commit on a correctly-named branch · PR to `develop` with the template filled ·
+a fresh-context review confirmed each criterion maps to a passing test.
+
+---
+
+## Acceptance tests — the core rule
+
+> **A task is only complete — and only committable — once its spec-derived acceptance tests
+> exist and pass.**
+
+How it works end to end:
+
+1. **The backlog carries a test plan.** `/spec-backlog` writes an *Acceptance tests* list under
+   each task — one entry per acceptance criterion (see `examples/whatsapp-no-show-backlog.md`).
+2. **Tests are written first.** When a task is taken, `/task-execute` (or the
+   `feature-implementer` subagent) turns each criterion into a failing test **before** writing
+   implementation code.
+3. **Tests are tagged with the task id.** Put the id in the test name, file name, or a comment
+   so the gate can find it:
+   ```js
+   describe('WND-03: dispatch sends a T-24h reminder and records status', () => { /* … */ });
+   ```
+4. **The gate enforces it before every commit.** `.claude/scripts/quality-gate.sh <task-id>`
+   fails with *"no test references the task id"* if the acceptance test is missing, and fails
+   if any check is red. No green gate → no commit (and the branch guard already stops commits
+   on protected branches).
+5. **CI enforces it again on the PR.** The `acceptance-tests` job derives the task id from the
+   PR/branch and fails if no test references it; `pr-description-check` requires the PR to map
+   each criterion to its test.
+6. **Review verifies coverage.** `spec-reviewer` only approves when every criterion maps to a
+   passing, task-tagged test — code that "looks right" but has no test is *not met*.
+
+**Stack-agnostic.** The gate greps your test files for the task id. If your tests live outside
+the defaults, set `ACCEPTANCE_DIRS` / `ACCEPTANCE_GLOBS` (documented at the top of
+`.claude/scripts/quality-gate.sh`). The same applies to any language/test framework — Jest,
+Vitest, Pytest, Go test, RSpec, Cucumber `.feature` files, etc.
+
+This repo eats its own dog food: see `tests/framework.test.js` — acceptance tests tagged
+`AFT-200` that validate the installer, the branch guard, and the acceptance gate itself.
 
 ---
 
@@ -193,6 +242,9 @@ code, because it lives in git and GitHub — not in any one tool.
 
 - **Branch names, commit format, Definition of Done** → edit `CLAUDE.md` (one source of truth).
 - **What the quality gate runs** → it calls your `package.json` scripts; change those.
+- **Where the acceptance check looks for tests** → `ACCEPTANCE_DIRS` / `ACCEPTANCE_GLOBS` env
+  vars (documented atop `.claude/scripts/quality-gate.sh`); the CI mirror is the
+  `acceptance-tests` job in `pr-validation.yml`.
 - **Protected branches / regex** → `PROTECTED_REGEX` in `.claude/scripts/guard-branch.sh`
   and the checks in `.github/workflows/pr-validation.yml`.
 - **PR sections required by CI** → the `required` array in `pr-validation.yml` and the
@@ -210,8 +262,17 @@ its job — don't bypass it.
 **"The quality gate skipped everything."** It only runs scripts that exist in `package.json`.
 Add real `lint`/`typecheck`/`test` scripts.
 
-**"CI fails on `pr-description-check`."** Fill *every* section of the PR template and include a
-backlog task id (e.g. `WND-03`) in the body.
+**"Gate says: no test references the task id."** That's the acceptance rule. Write a test that
+asserts the task's acceptance criteria and put the task id in its name/file/comment (e.g.
+`WND-03: …`), then re-run `.claude/scripts/quality-gate.sh WND-03`. If your tests live in a
+non-standard place, set `ACCEPTANCE_DIRS` / `ACCEPTANCE_GLOBS`.
+
+**"CI `acceptance-tests` job fails."** No test in the repo references the task id derived from
+the PR/branch. Same fix as above — the test must be committed on the branch.
+
+**"CI fails on `pr-description-check`."** Fill *every* section of the PR template, include a
+backlog task id (e.g. `WND-03`), and map each acceptance criterion to its test in the
+*Acceptance criteria → tests* section.
 
 **"Scripts aren't executable."** `chmod +x .claude/scripts/*.sh`.
 

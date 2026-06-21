@@ -22,8 +22,12 @@ Generated: 2026-06-20
   - [ ] A job is enqueued at T-24h for every future appointment.
   - [ ] Times are stored UTC and computed against the clinic timezone.
   - [ ] Re-scheduling an appointment reschedules its reminder.
+- **Acceptance tests:**            <!-- one per criterion; written FIRST, tagged with the task id -->
+  - [ ] `WND-01: enqueues a job at T-24h for a future appointment` — unit — asserts a job exists at appt−24h
+  - [ ] `WND-01: stores UTC and computes against clinic timezone` — unit — DST-boundary case
+  - [ ] `WND-01: rescheduling moves the reminder` — integration — old job cancelled, new job enqueued
 - **Touches:** `src/scheduler/`, `src/lib/time.ts`
-- **Test notes:** Unit tests for timezone math; a job is enqueued exactly once.
+- **Test notes:** Tag each test with `WND-01` so the gate finds it; a job is enqueued exactly once.
 
 ### WND-02 — WhatsApp send adapter
 - **Status:** todo

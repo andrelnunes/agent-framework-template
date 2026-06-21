@@ -1,14 +1,17 @@
 ---
 name: task-execute
-description: Execute one backlog task — create its feat/* branch from develop, implement against the acceptance criteria, run the quality gate, and commit. Triggers on "/task-execute <id>", "work on task <id>", "implement <id>". Updates task status in the backlog file.
+description: Execute one backlog task TEST-FIRST — create its feat/* branch from develop, write spec-derived acceptance tests, implement until they pass, run the quality gate, and commit. Triggers on "/task-execute <id>", "work on task <id>", "implement <id>". Updates task status in the backlog file.
 argument-hint: <task-id>   e.g. WND-03
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
-# Task Execute
+# Task Execute (test-first)
 
 Take a single backlog task from `todo` to a committed branch ready to ship. `$ARGUMENTS` is
 the task id. If absent, list `todo` tasks from the backlog and ask which to run.
+
+**The rule:** a task is done — and committable — *only* once its spec-derived acceptance
+tests exist and pass. Write the tests before the implementation. The quality gate enforces it.
 
 ## Preconditions (verify first)
 - A backlog entry for `$ARGUMENTS` exists in `docs/backlog/{feature}.md`.
@@ -24,25 +27,36 @@ the task id. If absent, list `todo` tasks from the backlog and ask which to run.
    ```
    (The `PreToolUse` branch guard blocks commits on `main`/`develop`, so you must branch.)
 
-3. **Plan briefly**, then **implement** strictly within the task scope. Read neighbouring
-   files to match conventions. Cover every acceptance criterion with code **and** tests.
-
-4. **Quality gate.**
-   ```bash
-   .claude/scripts/quality-gate.sh
+3. **Write the acceptance tests FIRST.** Read the task's acceptance criteria (and the PRD for
+   context). For **each** criterion, write a test that asserts it. **Tag every test with the
+   task id** so the gate can find it — put `$ARGUMENTS` in the test name, the file name, or a
+   leading comment, e.g.:
+   ```js
+   describe('WND-03: dispatch sends a T-24h reminder and records status', () => { /* … */ });
    ```
-   Must pass. Fix code, never tests.
+   Run them — they should **fail** now (red), proving they test the unbuilt behaviour. If a
+   criterion can't be expressed as an automated test, note why in the backlog and add the
+   closest verifiable check; don't silently skip it.
 
-5. **Commit** (Conventional Commit, referencing the id):
+4. **Plan briefly**, then **implement** strictly within the task scope until every acceptance
+   test goes green. Read neighbouring files to match conventions. Fix the code, never the test.
+
+5. **Quality gate — pass the task id** so the acceptance check runs:
+   ```bash
+   .claude/scripts/quality-gate.sh $ARGUMENTS
+   ```
+   It fails if no test references `$ARGUMENTS` or if any check is red. Must pass before you commit.
+
+6. **Commit** (only after the gate is green; Conventional Commit, referencing the id):
    ```bash
    git add -A
    git commit -m "feat(<scope>): <subject>" -m "<what & why>" -m "Refs: $ARGUMENTS"
    ```
 
-6. **Update status** to `in-review` and check off the acceptance criteria you've met in the
-   backlog file.
+7. **Update status** to `in-review` and check off the acceptance criteria you've met in the
+   backlog file (each should now map to a passing, tagged test).
 
-7. **Hand off to `/ship-pr`** to push and open the pull request. Do not push to a protected
+8. **Hand off to `/ship-pr`** to push and open the pull request. Do not push to a protected
    branch; the guard will block it anyway.
 
 ## Parallelizing

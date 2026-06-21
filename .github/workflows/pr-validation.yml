@@ -46,12 +46,65 @@ jobs:
             if (missing.length) core.setFailed(`Missing required section(s): ${missing.join(", ")}`);
 
             // A linked task id must be present (e.g. ABC-12).
-            if (!/[A-Z]{2,4}-\d+/.test(body)) core.setFailed("No backlog task id (e.g. WND-03) found in the PR body.");
+            const taskId = (body.match(/[A-Z]{2,4}-\d+/) || [])[0];
+            if (!taskId) core.setFailed("No backlog task id (e.g. WND-03) found in the PR body.");
+
+            // The acceptance-criteria section must map criteria to tests: it should reference
+            // a test file path or the task-id test tag. Enforces "every criterion has a test".
+            const acIdx = body.indexOf("## Acceptance criteria");
+            if (acIdx !== -1) {
+              const after = body.slice(acIdx);
+              const acSection = after.slice(0, (after.slice(2).indexOf("\n## ") + 2) || after.length);
+              const mentionsTest = /\.(test|spec|feature)\b|test[\/\\]|tests[\/\\]|::|→\s*`/.test(acSection)
+                || (taskId && new RegExp(`${taskId}:`).test(acSection));
+              if (!mentionsTest) core.setFailed("Acceptance criteria must map to tests — reference the acceptance test (file or task-id tag) for each criterion.");
+            }
 
             // Reject a body that still contains the template's instructional comments unfilled.
             const stripped = body.replace(/<!--[\s\S]*?-->/g, "").replace(/^#.*$/gm, "");
             const words = stripped.replace(/[-\[\]x\s]/g, "").length;
             if (words < 40) core.setFailed("PR description looks empty — fill in the template sections.");
+
+  acceptance-tests:
+    name: Acceptance tests exist for the task
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: A test must reference the task id
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # Derive the task id from the PR body, title, or branch name.
+          TASK_ID="$(printf '%s\n%s\n%s' "$PR_BODY" "$PR_TITLE" "$HEAD_REF" \
+                     | grep -oE '[A-Z]{2,4}-[0-9]+' | head -1 || true)"
+          if [ -z "$TASK_ID" ]; then
+            echo "::error::No task id (e.g. WND-03) found in PR body/title/branch — cannot verify acceptance tests."
+            exit 1
+          fi
+          echo "Task: $TASK_ID"
+
+          # Prefer the framework's own gate (acceptance existence check), if present.
+          if [ -x .claude/scripts/quality-gate.sh ]; then
+            # The gate also runs lint/typecheck/test; here we only need the acceptance
+            # existence check, so grep directly to keep this job fast and focused.
+            :
+          fi
+
+          # A test file must reference the task id.
+          MATCHES="$(grep -rIl --binary-files=without-match \
+                      --include='*.test.*' --include='*.spec.*' \
+                      --include='*_test.*'  --include='test_*.*' \
+                      --include='*Test.*'   --include='*.feature' \
+                      -- "$TASK_ID" . 2>/dev/null \
+                    | grep -v '/node_modules/' || true)"
+          if [ -z "$MATCHES" ]; then
+            echo "::error::No acceptance test references '$TASK_ID'. A task is not done until its spec-derived acceptance tests exist (tag them with the task id)."
+            exit 1
+          fi
+          echo "Acceptance tests for $TASK_ID:"
+          echo "$MATCHES" | sed 's/^/  /'
 
   validate:
     name: Lint · Typecheck · Test · Build

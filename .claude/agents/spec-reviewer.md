@@ -19,20 +19,29 @@ The task id, its acceptance criteria, the PRD path, and the branch (or diff) und
    git fetch origin develop --quiet
    git diff origin/develop...HEAD
    ```
-2. For **each acceptance criterion**, decide: met / partially met / not met — and point to the
-   exact code that satisfies it (or note its absence).
-3. Run the deeper correctness pass with the existing **`engineering:code-review`** skill for
-   bugs, security, and edge cases. Also re-run `.claude/scripts/quality-gate.sh` to confirm green.
-4. Check the non-functional bar: tests cover the new behaviour, no secrets, no dead/commented
-   code, no scope creep beyond the task, naming/conventions consistent with the repo.
+2. For **each acceptance criterion**, decide: met / partially met / not met — and point to
+   **both** (a) the code that satisfies it and (b) the **acceptance test that proves it** (the
+   test tagged with the task id). A criterion with no corresponding passing test is **not met**,
+   no matter how good the code looks — call it out.
+3. Re-run the gate with the task id to confirm the acceptance tests exist and the suite is green:
+   ```bash
+   .claude/scripts/quality-gate.sh <task-id>
+   ```
+   Then run the deeper correctness pass with the existing **`engineering:code-review`** skill
+   for bugs, security, and edge cases.
+4. Check the non-functional bar: every criterion is covered by a tagged, passing test; tests
+   assert real behaviour (not trivially-true / not deleted-to-pass); no secrets; no
+   dead/commented code; no scope creep beyond the task; naming/conventions consistent with the repo.
 
 ## Output — a verdict, not a rewrite
 ```
 VERDICT: APPROVE | REQUEST CHANGES
 
-Acceptance criteria
-- AC1 … ✓ met        (path:line)
-- AC2 … ✗ not met    (what's missing)
+Acceptance criteria (each must map to a passing, task-tagged test)
+- AC1 … ✓ met        code: path:line   test: path::"WND-03: …"
+- AC2 … ✗ not met    (no test asserts this / test is trivial / criterion unimplemented)
+
+Gate: .claude/scripts/quality-gate.sh <task-id> → PASS | FAIL
 
 Blocking findings
 1. …
@@ -40,5 +49,6 @@ Blocking findings
 Non-blocking suggestions
 - …
 ```
-Be specific and terse. Only `APPROVE` when every acceptance criterion is met and there are no
-blocking findings. Do not edit the code — report, and let the implementer fix.
+Be specific and terse. Only `APPROVE` when **every acceptance criterion maps to a passing,
+task-tagged test**, the gate is green, and there are no blocking findings. Do not edit the
+code — report, and let the implementer fix.

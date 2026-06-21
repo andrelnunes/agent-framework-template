@@ -16,14 +16,16 @@ Open a pull request that a reviewer can approve with confidence. Target is **alw
   (via `/task-execute`'s commit step) — don't bundle unrelated changes.
 
 ## Procedure
-1. **Re-run the gate** to guarantee CI parity:
-   ```bash
-   .claude/scripts/quality-gate.sh
-   ```
-   If it fails, do not open the PR.
-
-2. **Resolve the task id** from `$ARGUMENTS`, the branch name, or the commit's `Refs:` line.
+1. **Resolve the task id** from `$ARGUMENTS`, the branch name, or the commit's `Refs:` line.
    Read the matching task in `docs/backlog/{feature}.md` for title and acceptance criteria.
+
+2. **Re-run the gate WITH the task id** to guarantee CI parity and confirm the acceptance
+   tests exist and pass:
+   ```bash
+   .claude/scripts/quality-gate.sh <task-id>
+   ```
+   If it fails — including "no test references the task id" — **do not open the PR**. Go back
+   to `/task-execute` and write/fix the acceptance tests first.
 
 3. **Push the branch:**
    ```bash
@@ -33,8 +35,9 @@ Open a pull request that a reviewer can approve with confidence. Target is **alw
 
 4. **Compose the PR body** by filling **every** section of
    `.github/pull_request_template.md` — Summary, Linked PRD/Task, Changes, How to test,
-   Checklist, Risks/Rollback. Map the task's acceptance criteria into the checklist. An empty
-   or templated-but-unfilled section will fail the CI `pr-description-check`.
+   Acceptance criteria, Risks/Rollback, Checklist. **Map each acceptance criterion to the
+   acceptance test that proves it** (file + test name). An empty or templated-but-unfilled
+   section will fail the CI `pr-description-check`.
 
 5. **Open the PR to `develop`:**
    ```bash

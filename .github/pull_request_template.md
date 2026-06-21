@@ -24,9 +24,12 @@
 -
 
 
-## Acceptance criteria
-<!-- Copy the task's acceptance criteria and check off what this PR satisfies. -->
-- [ ]
+## Acceptance criteria → tests
+<!--
+  Required. Each acceptance criterion MUST map to a passing test tagged with the task id.
+  A criterion with no test is not done. Format: criterion → test file::"<task-id>: name".
+-->
+- [ ] {criterion} → `path/to/test::"WND-03: …"`
 
 
 ## Risks & rollback
@@ -35,7 +38,8 @@
 
 ## Checklist
 - [ ] Branch is `feat/*` (or `fix/*` / `chore/*`) cut from `develop`, and targets `develop`
-- [ ] `lint`, `typecheck`, and `test` pass locally (`.claude/scripts/quality-gate.sh`)
-- [ ] New behaviour is covered by tests (bug fixes include a regression test)
+- [ ] **Spec-derived acceptance tests exist, one per criterion, tagged with the task id**
+- [ ] `.claude/scripts/quality-gate.sh <task-id>` passes (acceptance tests present + lint/typecheck/test green)
+- [ ] Every acceptance criterion above maps to a passing test (bug fixes include a regression test)
 - [ ] Conventional Commit messages, no secrets, no dead/commented code
 - [ ] Reviewed by the `spec-reviewer` (or a human) against acceptance criteria

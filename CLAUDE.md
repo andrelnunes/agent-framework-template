@@ -1,8 +1,10 @@
 # CLAUDE.md — B42 Spec-Driven Engineering
 
-This repository runs a **spec-driven development** workflow. Every change flows
-PRD → backlog task → branch → implementation → quality gate → pull request.
-These rules are non-negotiable and apply to the main session and every subagent.
+This repository runs a **spec-driven, test-gated development** workflow. Every change flows
+PRD → backlog task → branch → **acceptance tests (from the spec)** → implementation →
+quality gate → pull request. A task is **not done, and not committable, until its
+spec-derived acceptance tests exist and pass.** These rules are non-negotiable and apply to
+the main session and every subagent.
 
 ---
 
@@ -27,12 +29,27 @@ These rules are non-negotiable and apply to the main session and every subagent.
 A `PreToolUse` hook enforces the branch rule automatically and will block a `git commit`
 or `git push` issued while on `main` or `develop`. Do not try to work around it.
 
+### Acceptance tests are mandatory — and they come first
+- When a task is taken, **derive acceptance tests from its spec** (the backlog task's
+  acceptance criteria, traced to the PRD) **before** writing implementation code. One test
+  per acceptance criterion is the baseline.
+- **Tag every acceptance test with the task id** (in the test name, the file name, or a
+  comment) so it's discoverable — e.g. `describe('WND-03: sends a T-24h reminder', …)`.
+  The quality gate fails the commit if no test references the task id.
+- A task is **complete only when those tests pass**. Never weaken or delete a test to go
+  green — fix the implementation.
+- **No commit before the gate is green.** Run `.claude/scripts/quality-gate.sh <TASK-ID>`;
+  it verifies the acceptance tests exist *and* the whole suite passes. Only then commit.
+
 ### Definition of Done (a task is only done when all are true)
+- [ ] Spec-derived **acceptance tests exist**, one per acceptance criterion, tagged with the task id.
 - [ ] Implements every acceptance criterion of its backlog task.
-- [ ] `lint`, `typecheck`, and `test` all pass locally (run `.claude/scripts/quality-gate.sh`).
-- [ ] Committed on a correctly-named branch with a Conventional Commit message.
+- [ ] `.claude/scripts/quality-gate.sh <TASK-ID>` passes: acceptance tests present **and**
+      `lint`, `typecheck`, `test` all green locally.
+- [ ] Committed (only after the gate is green) on a correctly-named branch with a Conventional Commit message.
 - [ ] A pull request to `develop` is open, using the PR template, fully filled in.
-- [ ] A fresh-context review (`spec-reviewer` agent) found no blocking gaps.
+- [ ] A fresh-context review (`spec-reviewer` agent) confirmed each acceptance criterion is
+      covered by a passing test and found no blocking gaps.
 
 ---
 
@@ -43,10 +60,15 @@ Run the chain end-to-end with `/spec-flow`, or step through it manually:
 | Step | Command / Skill | Input → Output |
 |------|-----------------|----------------|
 | 1. Define the spec | `product-requirements` *(existing skill)* | idea → `docs/{feature}-prd.md` |
-| 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks w/ ids, AC, deps) |
-| 3. Execute a task | `/task-execute <task-id>` | task → branch + implementation + passing gates |
-| 4. Ship it | `/ship-pr` | commit + PR to `develop` (template, linked task) |
-| 5. Review | `spec-reviewer` *(agent)* + `engineering:code-review` *(existing skill)* | diff → findings |
+| 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks w/ ids, AC, **acceptance-test plan**, deps) |
+| 3. Execute a task | `/task-execute <task-id>` | task → branch + **acceptance tests (from spec, written first)** + implementation + green gate + commit |
+| 4. Ship it | `/ship-pr` | commit + PR to `develop` (template, linked task, test status) |
+| 5. Review | `spec-reviewer` *(agent)* + `engineering:code-review` *(existing skill)* | diff → criterion-by-criterion test coverage + findings |
+
+**Step 3 is test-first.** Inside `/task-execute`: read the task's acceptance criteria →
+write a failing acceptance test for each (tagged with the task id) → implement until they
+pass → run `.claude/scripts/quality-gate.sh <task-id>` → commit. The gate blocks the commit
+if the acceptance tests are missing or red.
 
 **Planning before code is mandatory.** For any multi-file or non-trivial task, produce a
 short plan (files to touch, approach, risks) and confirm it before implementing. Separate
@@ -82,12 +104,17 @@ One logical change per commit. No `WIP`, no commented-out code, no secrets.
 - Link the backlog task and PRD. A PR with no linked task is not reviewable.
 
 ### Tests & validation
+- **Acceptance tests come from the spec and are written first** (see Tier 1). Each task's
+  acceptance criteria become tests, tagged with the task id so the gate can find them.
 - The workflow is **stack-agnostic**: the quality gate calls whatever `lint`, `typecheck`,
   `test`, and `build` scripts your `package.json` defines (missing ones are skipped). For
   non-Node stacks, expose those entry points however your toolchain prefers and point the
   gate at them. Adapt this section to your project's actual stack and commands.
-- New behaviour ships with tests. Bug fixes ship with a regression test.
-- Never weaken a test to make it pass; fix the code.
+- The gate's **acceptance check is stack-agnostic too**: it greps your test files for the
+  task id. If your tests live outside the defaults, set `ACCEPTANCE_DIRS` / `ACCEPTANCE_GLOBS`
+  (see the top of `.claude/scripts/quality-gate.sh`).
+- New behaviour ships with tests. Bug fixes ship with a regression test reproducing the bug.
+- Never weaken or delete a test to make it pass; fix the code.
 
 ### Context discipline
 - Keep this file lean. Domain-specific rules go in a referenced doc, not inlined here.

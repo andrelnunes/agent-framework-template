@@ -173,22 +173,30 @@ This repo runs a **spec-driven workflow**. The full, enforced version lives in
 plain-markdown mirror so Cursor, OpenAI Codex, and Copilot follow the same rules.
 
 ## The loop
-PRD → backlog task → \`feat/*\` branch → implement → quality gate → PR to \`develop\`.
+PRD → backlog task → \`feat/*\` branch → **acceptance tests (from the spec)** → implement →
+quality gate → PR to \`develop\`.
 
 ## Hard rules
 1. **Never commit or push to \`main\` or \`develop\`.** They only advance through reviewed PRs.
    All work happens on \`feat/<name>\` (or \`fix/\` / \`chore/\`) branches cut from \`develop\`.
 2. **No work without a spec.** Every change traces to a backlog task in \`docs/backlog/{feature}.md\`,
    which traces to a PRD in \`docs/{feature}-prd.md\`.
-3. **Run the quality gate before committing:** \`.claude/scripts/quality-gate.sh\` (lint → typecheck → test).
-4. **Conventional Commits**, one logical change each, ending with \`Refs: <task-id>\`.
-5. **PRs target \`develop\`**, use \`.github/pull_request_template.md\` fully filled in, and link the task.
+3. **Acceptance tests come first.** When you take a task, derive a test from each acceptance
+   criterion and **tag it with the task id** (in the test name/file/comment), e.g.
+   \`describe('WND-03: …')\`. Write the tests before the implementation.
+4. **A task is done — and committable — only when those tests pass.** Run the gate WITH the
+   task id before committing: \`.claude/scripts/quality-gate.sh <task-id>\`. It fails if no test
+   references the task id or if any check is red. Fix the code, never weaken a test.
+5. **Conventional Commits**, one logical change each, ending with \`Refs: <task-id>\`.
+6. **PRs target \`develop\`**, use \`.github/pull_request_template.md\` fully filled in, link the
+   task, and map each acceptance criterion to its test.
 
 ## Definition of Done
+- Spec-derived acceptance tests exist (one per criterion, tagged with the task id) and pass.
 - Every acceptance criterion of the task is met.
-- \`lint\`, \`typecheck\`, \`test\` pass locally.
+- \`.claude/scripts/quality-gate.sh <task-id>\` is green (acceptance check + lint/typecheck/test).
 - Branch correctly named, Conventional Commit, PR to \`develop\` with the template filled.
-- An independent review found no blocking gaps.
+- An independent review confirmed each criterion maps to a passing test.
 
 > Cursor users: this file doubles as your \`.cursorrules\` source — point Cursor at it.
 > Codex/Copilot users: paste the "Hard rules" + "Definition of Done" into your custom instructions.
@@ -206,14 +214,22 @@ Branch model (non-negotiable):
 - main and develop are protected — never commit or push to them.
 - All work on feat/<name> branches cut from develop.
 
+Acceptance tests come FIRST:
+- When you take a task, write a test for each acceptance criterion BEFORE implementing.
+- Tag every test with the task id (test name, file name, or comment), e.g. describe('WND-03: ...').
+- The task is done — and committable — only once those tests pass.
+
 Before committing:
-- Run .claude/scripts/quality-gate.sh (lint, typecheck, test). It must pass — fix code, not tests.
+- Run .claude/scripts/quality-gate.sh <task-id>. It fails if no test references the task id,
+  or if lint/typecheck/test are red. Must pass before you commit. Fix code, never weaken tests.
 - Use Conventional Commits, one logical change, ending with: Refs: <task-id>
 
 Pull requests:
-- Target develop, never main. Fill every section of .github/pull_request_template.md. Link the task.
+- Target develop, never main. Fill every section of .github/pull_request_template.md. Link the
+  task and map each acceptance criterion to the test that proves it.
 
-Definition of Done: all acceptance criteria met; gate green; PR open to develop with template filled.
+Definition of Done: spec-derived acceptance tests exist + pass; all criteria met; gate green;
+PR open to develop with template filled.
 `;
 
 async function installCompat(dir, opts) {

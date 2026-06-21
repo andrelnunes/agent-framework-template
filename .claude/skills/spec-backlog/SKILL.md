@@ -20,7 +20,8 @@ names a PRD path or feature, use it; otherwise ask which PRD to decompose.
 2. Slice into tasks that are each:
    - **Independently shippable** — one PR's worth of work, ideally < ~1 day.
    - **Vertically sliced** where possible (a thin end-to-end capability beats a horizontal layer).
-   - **Testable** — its acceptance criteria can be verified.
+   - **Testable** — every acceptance criterion must be expressible as an automated acceptance
+     test. If a criterion can't be tested, rewrite it until it can (or flag it explicitly).
 3. Assign a **stable id**: a 2–4 letter feature prefix + number, e.g. `WND-01`, `WND-02`.
    Ids never change once written — they thread through branch names, commits, and PRs.
 4. Map **dependencies** between tasks and flag which can run **in parallel** vs. must be
@@ -49,12 +50,18 @@ Generated: {YYYY-MM-DD}
 - **Acceptance criteria:**
   - [ ] {testable criterion, traceable to the PRD}
   - [ ] {…}
+- **Acceptance tests:**            <!-- one per criterion; written FIRST during /task-execute -->
+  - [ ] `WND-01: {criterion}` — {test type: unit | integration | e2e} — {what it asserts}
+  - [ ] `WND-01: {…}`
 - **Touches:** {files/modules, best estimate — used to detect conflicts}
-- **Test notes:** {what proves it works}
+- **Test notes:** {fixtures/mocks/data needed; how to run just these tests}
 
 ### WND-02 — {…}
 …
 ```
+
+Every acceptance test in the plan is **tagged with the task id** (e.g. `WND-01: …`) so the
+quality gate can verify it exists. The implementer writes these tests *before* the code.
 
 ## Handoff
 End by printing the **execution plan** and recommending the next move: either

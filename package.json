@@ -19,7 +19,8 @@
   ],
   "scripts": {
     "init": "node init.js",
-    "test": "node init.js --test"
+    "selftest": "node init.js --test",
+    "test": "node init.js --test && node --test"
   },
   "keywords": [
     "spec-driven-development",
