@@ -1,16 +1,12 @@
 # Node modules
 node_modules/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
 
-# Agent-specific temporary files
-.agent-cache/
-.agent-temp/
+# Local-only Claude Code settings (per-machine permissions, etc.)
+.claude/settings.local.json
 
-# Test outputs
-test-output/
-.agent-framework-test/
+# Git worktrees created by .claude/scripts/worktree.sh live as a sibling dir,
+# but ignore any that land inside the repo just in case.
+*.worktrees/
 
 # OS files
 .DS_Store

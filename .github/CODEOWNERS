@@ -1,0 +1,13 @@
+# Require explicit review for the workflow's own guardrails, so agents (or anyone)
+# can't quietly weaken the rules in a feature PR.
+#
+# Replace @andrelnunes with your own GitHub handle or a team (e.g. @your-org/leads)
+# when you install this kit in another repo.
+
+# Default owner for everything
+*                       @andrelnunes
+
+# The spec-driven workflow infrastructure — change with care
+/.claude/               @andrelnunes
+/.github/               @andrelnunes
+CLAUDE.md               @andrelnunes

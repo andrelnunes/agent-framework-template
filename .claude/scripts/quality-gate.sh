@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Local quality gate: acceptance-test check -> lint -> typecheck -> test (-> build).
+# Mirrors the checks the GitHub Actions PR workflow runs, so "green locally" means
+# "green in CI". Run before EVERY commit and before opening a PR.
+#
+#   .claude/scripts/quality-gate.sh <TASK-ID>          # full gate for a task (acceptance check + lint/types/test)
+#   .claude/scripts/quality-gate.sh <TASK-ID> --build  # also run build
+#   .claude/scripts/quality-gate.sh --build            # gate without a task id (acceptance check skipped w/ warning)
+#
+# Acceptance-test policy (the headline rule of this framework):
+#   A task is only "done" — and only committable — once acceptance tests derived from its
+#   spec (PRD / backlog acceptance criteria) EXIST and PASS. This gate enforces that an
+#   acceptance test referencing the task id is present in the test suite, then runs the suite.
+#   Tag your acceptance tests with the task id so they're discoverable, e.g.:
+#       describe('WND-03: sends a T-24h reminder', ...)         // or in the file name / a comment
+#   Override the discovery globs/markers with env vars if your layout differs:
+#       ACCEPTANCE_GLOBS, ACCEPTANCE_DIRS (see below).
+#
+# Stack specifics live in package.json scripts (lint, typecheck, test, build), so this
+# script is stack-agnostic. The package manager is auto-detected from the lockfile.
+set -uo pipefail
+
+# --- parse args -----------------------------------------------------------
+RUN_BUILD=false
+TASK_ID=""
+for arg in "$@"; do
+  case "$arg" in
+    --build) RUN_BUILD=true ;;
+    --*) : ;; # ignore unknown flags
+    *) [ -z "$TASK_ID" ] && TASK_ID="$arg" ;;
+  esac
+done
+
+# --- detect package manager ----------------------------------------------
+if [ -f pnpm-lock.yaml ]; then PM="pnpm"; RUN="pnpm";
+elif [ -f yarn.lock ]; then PM="yarn"; RUN="yarn";
+else PM="npm"; RUN="npm run"; fi
+echo "▸ package manager: $PM"
+
+fail=0
+
+# --- 1. acceptance-test gate ---------------------------------------------
+# Find where tests live and confirm at least one references the task id.
+ACCEPTANCE_DIRS="${ACCEPTANCE_DIRS:-tests test __tests__ spec e2e src}"
+ACCEPTANCE_GLOBS="${ACCEPTANCE_GLOBS:-*.test.* *.spec.* *_test.* test_*.* *Test.* *.feature}"
+
+acceptance_gate() {
+  if [ -z "$TASK_ID" ]; then
+    echo "! Acceptance gate: no TASK-ID passed — cannot verify spec coverage."
+    echo "  Run: .claude/scripts/quality-gate.sh <TASK-ID>   (e.g. WND-03)"
+    echo "  Skipping the existence check, but commits SHOULD reference a task with acceptance tests."
+    return 0
+  fi
+
+  echo "▸ Acceptance gate for $TASK_ID …"
+
+  # Build a list of candidate test files across the known dirs.
+  local search_paths=()
+  for d in $ACCEPTANCE_DIRS; do [ -d "$d" ] && search_paths+=("$d"); done
+  if [ "${#search_paths[@]}" -eq 0 ]; then search_paths=("."); fi
+
+  # Collect test files matching common test globs.
+  local -a globargs=()
+  for g in $ACCEPTANCE_GLOBS; do globargs+=(-iname "$g" -o); done
+  # drop the trailing -o
+  unset 'globargs[${#globargs[@]}-1]'
+
+  local matches
+  matches="$(find "${search_paths[@]}" -type f \( "${globargs[@]}" \) \
+              -not -path '*/node_modules/*' 2>/dev/null \
+            | xargs grep -l -- "$TASK_ID" 2>/dev/null || true)"
+
+  if [ -z "$matches" ]; then
+    echo "✗ Acceptance gate FAILED: no test references task '$TASK_ID'."
+    echo "  Write acceptance tests derived from the task's acceptance criteria FIRST,"
+    echo "  tag them with the task id (in the test name, file name, or a comment), then re-run."
+    echo "  This is the rule: a task is not done — and not committable — until its"
+    echo "  spec-derived acceptance tests exist and pass."
+    fail=1
+    return 1
+  fi
+
+  echo "✓ Acceptance tests found for $TASK_ID:"
+  echo "$matches" | sed 's/^/    /'
+  return 0
+}
+
+acceptance_gate
+
+# --- 2. lint / typecheck / test / build ----------------------------------
+gate() {
+  # $1 = label, $2 = npm script name
+  local label="$1" script="$2"
+  if [ ! -f package.json ]; then
+    echo "• $label skipped (no package.json)"
+    return 0
+  fi
+  if node -e "process.exit(require('./package.json').scripts?.['$script']?0:1)" 2>/dev/null; then
+    echo "▸ $label ($script)…"
+    if [ "$PM" = "npm" ]; then npm run "$script"; else $RUN "$script"; fi
+    if [ $? -ne 0 ]; then echo "✗ $label FAILED"; fail=1; else echo "✓ $label passed"; fi
+  else
+    echo "• $label skipped (no '$script' script in package.json)"
+  fi
+}
+
+gate "Lint"      "lint"
+gate "Typecheck" "typecheck"
+gate "Tests"     "test"
+$RUN_BUILD && gate "Build" "build"
+
+echo "---------------------------------------"
+if [ "$fail" -ne 0 ]; then
+  echo "✗ Quality gate FAILED. Fix the issues above before committing or opening a PR."
+  echo "  Remember: spec-derived acceptance tests must EXIST and PASS before a task is done."
+  exit 1
+fi
+echo "✓ Quality gate passed — acceptance tests present and the suite is green."
+exit 0

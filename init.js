@@ -1,2039 +1,424 @@
 #!/usr/bin/env node
-
 /**
- * Multi-Agent Coordination Framework
- * Copyright (c) 2025 André Nunes / Tekverso
- * Licensed under the Business Source License 1.1
- * See LICENSE file for details
- *
+ * agent-framework-template — v2 installer (spec-driven + worktrees)
+ * Copyright (c) 2025 André Nunes / Tekverso — Business Source License 1.1
  * https://github.com/andrelnunes/agent-framework-template
- */
-
-import inquirer from 'inquirer';
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-console.log(chalk.cyan.bold(`
-╔═══════════════════════════════════════════════════════╗
-║                                                       ║
-║     🤖  Multi-Agent Coordination Framework v1.0      ║
-║                                                       ║
-║         Agent-1 ←→ Agent-2 ←→ Agent-3                ║
-║              ↘     ↓     ↙                           ║
-║            Coordination Hub                           ║
-║                                                       ║
-║         Built by André Nunes | Tekverso              ║
-║         github.com/andrelnunes                       ║
-║                                                       ║
-╚═══════════════════════════════════════════════════════╝
-`));
-
-// === MAIN FUNCTION ===
-async function main() {
-  try {
-    // Welcome message
-    console.log(chalk.yellow('\nWelcome! This wizard will help you set up the agent coordination framework.\n'));
-    console.log(chalk.gray('Choose between:\n'));
-    console.log(chalk.white('  • ') + chalk.green('Quick Start') + chalk.gray(' - 10 questions, smart defaults (5 minutes)'));
-    console.log(chalk.white('  • ') + chalk.blue('Full Wizard') + chalk.gray(' - Complete customization (15 minutes)\n'));
-
-    const { mode } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'mode',
-        message: 'Select initialization mode:',
-        choices: [
-          { name: '⚡ Quick Start (recommended for first-time users)', value: 'quick' },
-          { name: '🔧 Full Wizard (advanced customization)', value: 'full' }
-        ]
-      }
-    ]);
-
-    const config = mode === 'quick' ? await quickStartMode() : await fullWizardMode();
-
-    await generateFramework(config);
-    await setupGitIntegration(config);
-    await setupPreCommitHooks(config);
-
-    displaySuccessMessage(config);
-
-  } catch (error) {
-    console.error(chalk.red('\n❌ Error:'), error.message);
-    process.exit(1);
-  }
-}
-
-// === QUICK START MODE ===
-async function quickStartMode() {
-  console.log(chalk.cyan('\n📋 Quick Start Mode - 10 Essential Questions\n'));
-
-  const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'projectName',
-      message: 'Project name:',
-      validate: input => input.length > 0 || 'Project name is required'
-    },
-    {
-      type: 'input',
-      name: 'projectDescription',
-      message: 'Brief description:',
-      default: 'AI-powered application'
-    },
-    {
-      type: 'list',
-      name: 'agentMode',
-      message: 'Agent configuration:',
-      choices: [
-        { name: 'Single agent (solo developer)', value: 'single' },
-        { name: 'Multi-agent (2-5 agents working in parallel)', value: 'multi' }
-      ]
-    }
-  ]);
-
-  let agentConfig = {};
-
-  if (answers.agentMode === 'multi') {
-    const multiAgentAnswers = await inquirer.prompt([
-      {
-        type: 'number',
-        name: 'agentCount',
-        message: 'How many agents will work in parallel?',
-        default: 3,
-        validate: input => (input >= 2 && input <= 10) || 'Must be between 2 and 10'
-      },
-      {
-        type: 'checkbox',
-        name: 'agentRoles',
-        message: 'Select agent roles:',
-        choices: [
-          { name: 'Frontend (UI/UX development)', value: 'Frontend', checked: true },
-          { name: 'Backend (API/server development)', value: 'Backend', checked: true },
-          { name: 'Documentation (docs/coordination)', value: 'Docs', checked: true },
-          { name: 'QA (testing/quality assurance)', value: 'QA' },
-          { name: 'DevOps (deployment/infrastructure)', value: 'DevOps' }
-        ]
-      }
-    ]);
-    agentConfig = multiAgentAnswers;
-  }
-
-  const techStack = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'frontendFramework',
-      message: 'Frontend framework:',
-      choices: ['React', 'Vue', 'Angular', 'Svelte', 'Next.js', 'None']
-    },
-    {
-      type: 'list',
-      name: 'backendFramework',
-      message: 'Backend framework:',
-      choices: ['Node.js/Express', 'Python/Django', 'Python/FastAPI', 'Ruby on Rails', 'Go', 'Deno', 'None']
-    },
-    {
-      type: 'list',
-      name: 'database',
-      message: 'Database:',
-      choices: ['PostgreSQL', 'MySQL', 'MongoDB', 'SQLite', 'Supabase', 'Firebase', 'None']
-    }
-  ]);
-
-  const directories = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'frontendDir',
-      message: 'Frontend source directory:',
-      default: techStack.frontendFramework !== 'None' ? 'src/' : 'none'
-    },
-    {
-      type: 'input',
-      name: 'backendDir',
-      message: 'Backend source directory:',
-      default: techStack.backendFramework !== 'None' ? 'server/' : 'none'
-    }
-  ]);
-
-  const git = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'mainBranch',
-      message: 'Main git branch name:',
-      default: 'main'
-    }
-  ]);
-
-  const hooks = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'enablePreCommitHooks',
-      message: 'Enable pre-commit hooks for framework compliance?',
-      default: true
-    }
-  ]);
-
-  return {
-    ...answers,
-    ...agentConfig,
-    ...techStack,
-    ...directories,
-    ...git,
-    ...hooks,
-    mode: 'quick',
-    // Smart defaults
-    currentPhase: 'Development',
-    testingFramework: 'auto-detect',
-    buildTool: 'auto-detect',
-    packageManager: 'npm',
-    commitFormat: 'conventional',
-    changelogFormat: 'keep-a-changelog',
-    frontendZones: [directories.frontendDir + '**/*'],
-    backendZones: [directories.backendDir + '**/*'],
-    sharedZones: ['package.json', 'README.md', 'tsconfig.json', '.env.example']
-  };
-}
-
-// === FULL WIZARD MODE ===
-async function fullWizardMode() {
-  console.log(chalk.cyan('\n🔧 Full Wizard Mode - Complete Customization\n'));
-
-  // Same as quick start but with more questions
-  const config = await quickStartMode();
-
-  console.log(chalk.cyan('\n📁 Advanced Directory Configuration\n'));
-
-  const advancedDirs = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'migrationsDir',
-      message: 'Database migrations directory:',
-      default: 'migrations/'
-    },
-    {
-      type: 'input',
-      name: 'testsDir',
-      message: 'Tests directory:',
-      default: 'tests/'
-    }
-  ]);
-
-  const advancedStandards = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'commitFormat',
-      message: 'Commit message format:',
-      choices: [
-        { name: 'Conventional Commits (feat:, fix:, docs:)', value: 'conventional' },
-        { name: 'Custom format', value: 'custom' }
-      ]
-    },
-    {
-      type: 'confirm',
-      name: 'typescriptStrict',
-      message: 'Use TypeScript strict mode?',
-      default: true,
-      when: (answers) => config.frontendFramework === 'React' || config.frontendFramework === 'Vue'
-    },
-    {
-      type: 'number',
-      name: 'testCoverageMin',
-      message: 'Minimum test coverage %:',
-      default: 80
-    }
-  ]);
-
-  return {
-    ...config,
-    ...advancedDirs,
-    ...advancedStandards,
-    mode: 'full'
-  };
-}
-
-// === GENERATE FRAMEWORK FILES ===
-async function generateFramework(config) {
-  const spinner = ora('Generating framework files...').start();
-
-  try {
-    const targetDir = path.join(process.cwd(), '.agent-framework');
-
-    // Create directory structure
-    fs.mkdirSync(path.join(targetDir, 'core'), { recursive: true });
-    fs.mkdirSync(path.join(targetDir, 'docs'), { recursive: true });
-    fs.mkdirSync(path.join(targetDir, 'templates'), { recursive: true });
-
-    // Generate files based on config
-    if (config.agentMode === 'single') {
-      await generateSingleAgentFiles(targetDir, config);
-    } else {
-      await generateMultiAgentFiles(targetDir, config);
-    }
-
-    spinner.succeed('Framework files generated successfully!');
-  } catch (error) {
-    spinner.fail('Failed to generate framework files');
-    throw error;
-  }
-}
-
-// === GENERATE SINGLE AGENT FILES ===
-async function generateSingleAgentFiles(targetDir, config) {
-  // Generate simplified PLAYBOOK for single agent
-  const playbook = generateSingleAgentPlaybook(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'PLAYBOOK.md'), playbook);
-
-  // Generate RULES.md
-  const rules = generateRules(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'RULES.md'), rules);
-
-  // Generate CHANGELOG.md
-  const changelog = generateChangelog(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'CHANGELOG.md'), changelog);
-
-  // Generate backlog.md (intelligent 3-tier system)
-  const backlog = await generateBacklog(config);
-  fs.writeFileSync(path.join(targetDir, '..', 'backlog.md'), backlog);
-
-  // Skip STATUS.md for single agent
-
-  // Generate README.md
-  const readme = generateFrameworkReadme(config);
-  fs.writeFileSync(path.join(targetDir, 'README.md'), readme);
-}
-
-// === GENERATE MULTI AGENT FILES ===
-async function generateMultiAgentFiles(targetDir, config) {
-  // Generate full PLAYBOOK for multi-agent
-  const playbook = generateMultiAgentPlaybook(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'PLAYBOOK.md'), playbook);
-
-  // Generate STATUS.md
-  const status = generateStatus(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'STATUS.md'), status);
-
-  // Generate RULES.md
-  const rules = generateRules(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'RULES.md'), rules);
-
-  // Generate CHANGELOG.md
-  const changelog = generateChangelog(config);
-  fs.writeFileSync(path.join(targetDir, 'core', 'CHANGELOG.md'), changelog);
-
-  // Generate backlog.md (intelligent 3-tier system)
-  const backlog = await generateBacklog(config);
-  fs.writeFileSync(path.join(targetDir, '..', 'backlog.md'), backlog);
-
-  // Generate README.md
-  const readme = generateFrameworkReadme(config);
-  fs.writeFileSync(path.join(targetDir, 'README.md'), readme);
-}
-
-// === TEMPLATE GENERATORS ===
-function generateSingleAgentPlaybook(config) {
-  return `# ${config.projectName} - Agent Playbook
-
-**Version:** 1.0
-**Last Updated:** ${new Date().toISOString().split('T')[0]}
-**Purpose:** Single-agent development guide for ${config.projectName}
-**Status:** Active
-
----
-
-## Project Overview
-
-### What is ${config.projectName}?
-
-${config.projectDescription}
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | ${config.frontendFramework} |
-| **Backend** | ${config.backendFramework} |
-| **Database** | ${config.database} |
-
----
-
-## Development Workflow
-
-### Before Starting Any Task
-
-1. **Pull Latest Code**
-   \`\`\`bash
-   git pull origin ${config.mainBranch}
-   \`\`\`
-
-2. **Read Core Documents**
-   - Read [backlog.md](../../backlog.md) - Current priorities and tasks
-   - Read [RULES.md](./RULES.md) - Project standards and best practices
-
-3. **Plan Your Work**
-   - Break down the task into smaller steps
-   - Estimate time needed
-   - Identify potential blockers
-
-### During Development
-
-1. **Commit Frequently**
-   - Commit every 1-2 hours with clear messages
-   - Follow commit message format (see RULES.md)
-   - Reference task numbers in commits
-
-2. **Test As You Go**
-   - Write tests for new features
-   - Run existing tests before committing
-   - Verify functionality manually
-
-### After Completing a Task
-
-1. **Final Testing**
-   - Run full test suite
-   - Check for TypeScript/linting errors
-   - Verify build succeeds
-
-2. **Update Documentation**
-   - Update [backlog.md](../../backlog.md) - Mark task as complete
-   - Update [CHANGELOG.md](./CHANGELOG.md) - Add entry for user-facing changes
-   - Update inline code documentation if needed
-
-3. **Create Pull Request (if using)**
-   - Write clear PR description
-   - Link to task/issue
-   - Request review if needed
-
----
-
-## File Structure
-
-### Frontend Files
-\`\`\`
-${config.frontendDir}
-\`\`\`
-
-### Backend Files
-\`\`\`
-${config.backendDir}
-\`\`\`
-
----
-
-## Best Practices
-
-### Code Quality
-- Follow project coding standards (see RULES.md)
-- Write self-documenting code
-- Add comments for complex logic only
-- Keep functions small and focused
-
-### Git Workflow
-- Branch name format: \`feature/task-name\` or \`fix/bug-name\`
-- Commit message format: See RULES.md
-- Push to remote frequently
-- Keep commits atomic and focused
-
-### Testing
-- Write tests for new features
-- Maintain test coverage above ${config.testCoverageMin}%
-- Run tests before pushing
-
----
-
-## Quick Reference
-
-### Common Commands
-
-\`\`\`bash
-# Pull latest code
-git pull origin ${config.mainBranch}
-
-# Create feature branch
-git checkout -b feature/your-feature
-
-# Run tests
-${config.packageManager} test
-
-# Build project
-${config.packageManager} run build
-
-# Commit changes
-git add .
-git commit -m "feat: Your commit message"
-
-# Push changes
-git push origin feature/your-feature
-\`\`\`
-
-### File Paths
-- Frontend: \`${config.frontendDir}\`
-- Backend: \`${config.backendDir}\`
-- Tests: \`${config.testsDir || 'tests/'}\`
-- Migrations: \`${config.migrationsDir || 'migrations/'}\`
-
----
-
-**For detailed standards and rules, see [RULES.md](./RULES.md)**
-`;
-}
-
-function generateMultiAgentPlaybook(config) {
-  const agentNames = config.agentRoles ? config.agentRoles.map((role, i) => `${role}-1`).join(', ') : 'Agent-1, Agent-2, Agent-3';
-
-  return `# ${config.projectName} - Multi-Agent Playbook
-
-**Version:** 1.0
-**Last Updated:** ${new Date().toISOString().split('T')[0]}
-**Purpose:** Multi-agent coordination framework for parallel development
-**Status:** Active
-**Agents:** ${config.agentCount || 3}
-
----
-
-## Table of Contents
-
-1. [Project Overview](#1-project-overview)
-2. [🚨 MANDATORY Pre-Task & Post-Task Protocols](#2--mandatory-pre-task--post-task-protocols)
-3. [Agent Roles & Responsibilities](#3-agent-roles--responsibilities)
-4. [Core Documentation Reference](#4-core-documentation-reference)
-5. [Coordination Mechanisms](#5-coordination-mechanisms)
-6. [File Reservation System](#6-file-reservation-system)
-7. [Quick Reference](#quick-reference)
-
----
-
-## 1. Project Overview
-
-### What is ${config.projectName}?
-
-${config.projectDescription}
-
-### Current Phase
-
-**Phase:** ${config.currentPhase}
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | ${config.frontendFramework} |
-| **Backend** | ${config.backendFramework} |
-| **Database** | ${config.database} |
-
----
-
-## 2. 🚨 MANDATORY Pre-Task & Post-Task Protocols
-
-### ⚠️ CRITICAL: Read These Documents BEFORE Starting ANY Task
-
-**EVERY agent MUST follow this protocol for EVERY task without exception:**
-
-#### 📖 Pre-Task Checklist (REQUIRED - Do Not Skip)
-
-Before starting **ANY** task, agents MUST:
-
-1. **Read Core Documents** (5-10 minutes total)
-   - [ ] Read [../../backlog.md](../../backlog.md) - Understand current priorities, dependencies, and task assignments
-   - [ ] Read [STATUS.md](./STATUS.md) - Check active agents, file reservations, blockers, coordination requests
-   - [ ] Read [RULES.md](./RULES.md) - Verify project standards, commit format, naming conventions
-   - [ ] Read task-specific references (linked in backlog task description)
-
-2. **Verify Task Readiness**
-   - [ ] Check task dependencies are all COMPLETE (no blockers)
-   - [ ] Verify files needed are not reserved by another agent
-   - [ ] Confirm you have necessary access/credentials
-   - [ ] Read any linked specification documents
-
-3. **Reserve Resources**
-   - [ ] Update [STATUS.md](./STATUS.md) - Add entry to ACTIVE AGENTS table
-   - [ ] Reserve files in FILE RESERVATIONS table (max 4 hours)
-   - [ ] Update [../../backlog.md](../../backlog.md) - Change task Status to "In Progress", set Agent ID and Start time
-
-4. **Pull Latest Code**
-   \`\`\`bash
-   git pull origin ${config.mainBranch}
-   \`\`\`
-
-#### ✅ Post-Task Checklist (REQUIRED - Complete Before Moving On)
-
-After completing **ANY** task, agents MUST:
-
-1. **Verify Quality**
-   - [ ] All tests passing
-   - [ ] TypeScript compilation successful (if applicable)
-   - [ ] No console errors/warnings
-   - [ ] Code follows RULES.md standards
-   - [ ] Build successful
-
-2. **Update Documentation**
-   - [ ] Update [../../backlog.md](../../backlog.md) - Status → "Complete", fill End date/time and Completed By
-   - [ ] Update [CHANGELOG.md](./CHANGELOG.md) - Add entry for user-facing changes
-   - [ ] Update [STATUS.md](./STATUS.md) - Move task to RECENT COMPLETIONS, release file reservations
-
-3. **Commit & Push**
-   \`\`\`bash
-   git add .
-   git commit -m "feat(task-id): Description
-
-   - Detail 1
-   - Detail 2
-
-   Refs: #task-number"
-   git push origin ${config.mainBranch}
-   \`\`\`
-
-4. **Communicate Completion**
-   - [ ] Notify dependent agents (via STATUS.md COORDINATION REQUESTS if needed)
-   - [ ] Report any issues/learnings for future tasks
-
----
-
-## 3. Agent Roles & Responsibilities
-
-${generateAgentRoles(config)}
-
----
-
-## 4. Core Documentation Reference
-
-### Essential Files (Read Before Every Task)
-
-1. **[../../backlog.md](../../backlog.md)** - Task tracking, priorities, dependencies, assignments
-2. **[STATUS.md](./STATUS.md)** - Real-time coordination dashboard, active agents, file reservations, blockers
-3. **[RULES.md](./RULES.md)** - Project standards, commit format, naming conventions, best practices
-4. **[CHANGELOG.md](./CHANGELOG.md)** - User-facing changes, release notes
-
----
-
-## 5. Coordination Mechanisms
-
-### Real-Time Updates
-
-All agents must update [STATUS.md](./STATUS.md) for:
-
-- **Starting work:** Add to ACTIVE AGENTS table, reserve files
-- **Every 2 hours:** Update heartbeat timestamp
-- **Found blocker:** Add to ISSUES & BLOCKERS section
-- **Need coordination:** Add to COORDINATION REQUESTS
-- **Completing work:** Move to RECENT COMPLETIONS, release files
-
-### File Reservations
-
-- Maximum **4 hours** per reservation
-- Auto-expire after time limit
-- Update STATUS.md immediately when reserving/releasing
-- DO NOT modify files reserved by another agent
-
----
-
-## 6. File Reservation System
-
-### How It Works
-
-1. **Before modifying any file**, check [STATUS.md](./STATUS.md) FILE RESERVATIONS table
-2. If file is NOT reserved, add entry:
-   \`\`\`markdown
-   | path/to/file.ts | Agent-1 | Task #42 | 2024-01-01 16:00 | 🔒 ACTIVE | Implementing feature X |
-   \`\`\`
-3. Work on the file (max 4 hours)
-4. When done, update status to RELEASED or remove entry
-
-### Rules
-
-- ⚠️ **NEVER modify a file reserved by another agent**
-- Maximum 4-hour reservations
-- Extend if needed (update "Reserved Until" time)
-- Release immediately when done
-- If reservation expires, any agent can take over
-
----
-
-## Quick Reference
-
-### Common Commands
-
-\`\`\`bash
-# Pull latest code
-git pull origin ${config.mainBranch}
-
-# Check agent status
-cat .agent-framework/core/STATUS.md
-
-# Check backlog
-cat backlog.md
-
-# Run tests
-${config.packageManager} test
-
-# Build project
-${config.packageManager} run build
-\`\`\`
-
-### File Ownership Zones
-
-**Frontend Zone:** ${config.frontendZones ? config.frontendZones.join(', ') : config.frontendDir + '**'}
-**Backend Zone:** ${config.backendZones ? config.backendZones.join(', ') : config.backendDir + '**'}
-**Shared Zone:** ${config.sharedZones ? config.sharedZones.join(', ') : 'package.json, README.md'}
-
-### Agent Coordination
-
-1. Check STATUS.md before starting work
-2. Reserve files you'll modify
-3. Update heartbeat every 2 hours
-4. Report blockers immediately
-5. Release files when done
-
----
-
-**For detailed standards and rules, see [RULES.md](./RULES.md)**
-**For real-time coordination, see [STATUS.md](./STATUS.md)**
-`;
-}
-
-function generateAgentRoles(config) {
-  if (!config.agentRoles || config.agentRoles.length === 0) {
-    return `### Agent Roles
-
-Configure your team based on your needs. Common roles:
-
-- **Frontend Agent:** UI/UX development, components, styling
-- **Backend Agent:** API development, database, business logic
-- **Docs Agent:** Documentation, coordination, tracking
-- **QA Agent:** Testing, quality assurance, bug reporting
-- **DevOps Agent:** Deployment, infrastructure, monitoring
-`;
-  }
-
-  return config.agentRoles.map((role, i) => {
-    const agentName = `${role}-1`;
-    const roleDescriptions = {
-      'Frontend': {
-        responsibilities: [
-          'UI/UX implementation',
-          'Component development',
-          'Styling and theming',
-          'Client-side state management',
-          'Frontend testing'
-        ],
-        zones: [`${config.frontendDir}**/*`]
-      },
-      'Backend': {
-        responsibilities: [
-          'API development',
-          'Database schema and migrations',
-          'Business logic implementation',
-          'Server-side authentication',
-          'Backend testing'
-        ],
-        zones: [`${config.backendDir}**/*`, `${config.migrationsDir || 'migrations/'}**/*`]
-      },
-      'Docs': {
-        responsibilities: [
-          'Documentation maintenance',
-          'Agent coordination',
-          'Status tracking',
-          'Backlog management',
-          'Change log updates'
-        ],
-        zones: ['*.md', '.agent-framework/**/*']
-      },
-      'QA': {
-        responsibilities: [
-          'Test development',
-          'Quality assurance',
-          'Bug reporting',
-          'Test automation',
-          'Performance testing'
-        ],
-        zones: [`${config.testsDir || 'tests/'}**/*`]
-      },
-      'DevOps': {
-        responsibilities: [
-          'CI/CD pipeline',
-          'Infrastructure management',
-          'Deployment automation',
-          'Monitoring setup',
-          'Security audits'
-        ],
-        zones: ['.github/**/*', 'docker/**/*', 'k8s/**/*']
-      }
-    };
-
-    const desc = roleDescriptions[role] || {
-      responsibilities: ['Custom role - define responsibilities'],
-      zones: ['custom/**/*']
-    };
-
-    return `### ${agentName} (${role} Agent)
-
-**Responsibilities:**
-${desc.responsibilities.map(r => `- ${r}`).join('\n')}
-
-**File Ownership Zones:**
-${desc.zones.map(z => `- \`${z}\``).join('\n')}
-
-**Forbidden Modifications:**
-- Do not modify files in other agents' zones without coordination
-- Do not commit directly to ${config.mainBranch} without review (if multi-agent)
-`;
-  }).join('\n---\n\n');
-}
-
-// Continue with more generators...
-function generateStatus(config) {
-  const agentRows = config.agentRoles ? config.agentRoles.map((role, i) => {
-    return `| ${role}-1 | ${role} Developer | ✅ STANDBY | - | - | - | ${new Date().toISOString().split('T')[0]} | Available for tasks |`;
-  }).join('\n') : '| Agent-1 | Developer | ✅ STANDBY | - | - | - | ${new Date().toISOString().split(\'T\')[0]} | Available for tasks |';
-
-  return `# Agent Status Dashboard
-
-**Project:** ${config.projectName}
-**Last Updated:** ${new Date().toISOString().split('T')[0]}
-**Phase:** ${config.currentPhase}
-
----
-
-## 📊 ACTIVE AGENTS
-
-| Agent ID | Role | Status | Current Task | Priority | ETA | Last Heartbeat | Notes |
-|----------|------|--------|--------------|----------|-----|----------------|-------|
-${agentRows}
-
----
-
-## 🔒 FILE RESERVATIONS
-
-| File(s) | Agent | Task | Reserved Until | Status | Notes |
-|---------|-------|------|-----------------|--------|-------|
-| (No active reservations) | - | - | - | - | All files available |
-
----
-
-## 📋 TASK QUEUE (From backlog.md)
-
-See [../../backlog.md](../../backlog.md) for current task list and priorities.
-
----
-
-## 🚫 BLOCKED TASKS
-
-| Task | Blocker | Status | ETA | Notes |
-|------|---------|--------|-----|-------|
-| (None currently) | - | - | - | No blockers |
-
----
-
-## 📣 COORDINATION REQUESTS
-
-| Request Type | From Agent | To Agent(s) | Status | Priority | Details |
-|--------------|-----------|-------------|--------|----------|---------|
-| (None currently) | - | - | ✅ Complete | - | All coordination up to date |
-
----
-
-## ✅ RECENT COMPLETIONS (Last 7 Days)
-
-| Task # | Feature | Agent | Completed | Commit | Status | Notes |
-|--------|---------|-------|-----------|--------|--------|-------|
-| - | - | - | - | - | - | No recent completions |
-
----
-
-## ⚠️ ISSUES & BLOCKERS
-
-### 🔴 Critical Issues
-- None
-
-### 🟠 Blockers
-- None
-
-### 🟡 Warnings
-- None
-
----
-
-## 👥 AGENT AVAILABILITY
-
-| Agent | Available Now | Assignment | Status | Notes |
-|-------|--------------|-----------|--------|-------|
-${config.agentRoles ? config.agentRoles.map(role => `| ${role}-1 | ✅ Yes | - | Online | Ready for assignment |`).join('\n') : '| Agent-1 | ✅ Yes | - | Online | Ready for assignment |'}
-
----
-
-## 📝 UPDATE PROTOCOL
-
-### When to Update This File
-
-| Event | Who | When | What |
-|-------|-----|------|------|
-| Start Work | All Agents | Session start | Add entry to Active Agents, reserve files |
-| Heartbeat | All Agents | Every 2 hours | Update Last Heartbeat time |
-| Task Update | Working Agent | Per milestone | Update current task, ETA, progress |
-| Task Completion | Completing Agent | Upon completion | Move to Recent Completions, release files |
-| End Session | All Agents | Session end | Update Last Heartbeat, remove reservation |
-| Blocker Found | Any Agent | Immediately | Add to Blockers, notify others |
-| Coordination Need | Any Agent | As needed | Add to Coordination Requests |
-
----
-
-**Status:** ✅ **FRAMEWORK INITIALIZED - READY FOR DEVELOPMENT**
-**Maintained By:** All Agents (Update before/after work sessions)
-`;
-}
-
-function generateRules(config) {
-  return `# ${config.projectName} - Project Rules & Best Practices
-
-**Version:** 1.0
-**Last Updated:** ${new Date().toISOString().split('T')[0]}
-**Status:** Living Document
-
----
-
-## Project Overview
-
-### Tech Stack
-| Layer | Technology |
-|-------|------------|
-| Frontend | ${config.frontendFramework} |
-| Backend | ${config.backendFramework} |
-| Database | ${config.database} |
-
----
-
-## ${config.agentMode === 'multi' ? 'Multi-Agent' : 'Single-Agent'} Development Framework
-
-### Core Principles
-
-1. **Read Before You Code**
-   - Always check [backlog.md](../../backlog.md) for current priorities
-${config.agentMode === 'multi' ? '   - Always check [STATUS.md](./.agent-framework/core/STATUS.md) for agent coordination\n' : ''}   - Always read task specifications completely
-
-2. **Commit Frequently**
-   - Commit every 1-2 hours
-   - Clear, descriptive commit messages
-   - Reference task numbers
-
-3. **Test As You Go**
-   - Write tests for new features
-   - Run tests before committing
-   - Maintain ${config.testCoverageMin || 80}% coverage
-
-4. **Document Your Work**
-   - Update backlog.md when completing tasks
-   - Update CHANGELOG.md for user-facing changes
-   - Add inline comments for complex logic
-
-${config.agentMode === 'multi' ? `
-### File Ownership & Coordination
-
-**Frontend Zone:**
-- ${config.frontendZones ? config.frontendZones.join('\n- ') : config.frontendDir + '**'}
-
-**Backend Zone:**
-- ${config.backendZones ? config.backendZones.join('\n- ') : config.backendDir + '**'}
-
-**Shared Zone (Requires Coordination):**
-- ${config.sharedZones ? config.sharedZones.join('\n- ') : 'package.json, README.md'}
-
-**Rules:**
-- Always check [STATUS.md](./.agent-framework/core/STATUS.md) before modifying files
-- Reserve files for max 4 hours
-- Release files immediately when done
-- Never modify files reserved by another agent
-` : ''}
-
----
-
-## Code Standards
-
-### Commit Message Format
-
-${config.commitFormat === 'conventional' ? `
-**Format:** \`type(scope): subject\`
-
-**Types:**
-- \`feat\`: New feature
-- \`fix\`: Bug fix
-- \`docs\`: Documentation changes
-- \`style\`: Code style changes (formatting)
-- \`refactor\`: Code refactoring
-- \`test\`: Test changes
-- \`chore\`: Build/config changes
-
-**Examples:**
-\`\`\`
-feat(auth): Add user login functionality
-fix(api): Resolve null pointer in user endpoint
-docs(readme): Update installation instructions
-\`\`\`
-` : `
-Follow project-specific commit format.
-`}
-
-### Code Quality
-
-- **Naming:** Clear, descriptive names for variables, functions, classes
-- **Functions:** Keep functions small and focused (< 50 lines)
-- **Comments:** Explain WHY, not WHAT
-- **Formatting:** Use project's linter/formatter
-${config.typescriptStrict ? '- **TypeScript:** Strict mode enabled, no \`any\` types\n' : ''}
-
-### Testing
-
-- **Unit Tests:** Test individual functions/components
-- **Integration Tests:** Test feature workflows
-- **Coverage:** Maintain ${config.testCoverageMin || 80}% minimum
-- **Test Location:** \`${config.testsDir || 'tests/'}\`
-
----
-
-## Git Workflow
-
-### Branching
-
-\`\`\`
-${config.mainBranch} (main branch)
-├── feature/user-auth
-├── fix/login-bug
-└── docs/api-guide
-\`\`\`
-
-### Branch Naming
-
-- \`feature/task-name\` - New features
-- \`fix/bug-name\` - Bug fixes
-- \`docs/doc-name\` - Documentation
-- \`refactor/module-name\` - Refactoring
-
-### Workflow
-
-1. Pull latest: \`git pull origin ${config.mainBranch}\`
-2. Create branch: \`git checkout -b feature/your-feature\`
-3. Make changes and commit frequently
-4. Push: \`git push origin feature/your-feature\`
-5. Create pull request (if using)
-6. After merge, delete branch
-
----
-
-## File Structure
-
-### Directories
-
-\`\`\`
-${config.projectName}/
-├── ${config.frontendDir}          # Frontend code
-├── ${config.backendDir}           # Backend code
-${config.migrationsDir ? `├── ${config.migrationsDir}      # Database migrations\n` : ''}${config.testsDir ? `├── ${config.testsDir}             # Tests\n` : ''}├── .agent-framework/    # Agent coordination
-│   ├── core/
-│   │   ├── PLAYBOOK.md
-${config.agentMode === 'multi' ? '│   │   ├── STATUS.md\n' : ''}│   │   ├── RULES.md
-│   │   └── CHANGELOG.md
-│   └── README.md
-└── backlog.md           # Task tracking
-\`\`\`
-
----
-
-## Documentation Standards
-
-### Inline Code Comments
-
-\`\`\`typescript
-// ❌ BAD: Explains WHAT
-// Set x to 5
-const x = 5;
-
-// ✅ GOOD: Explains WHY
-// Use 5-second timeout to prevent API rate limiting
-const TIMEOUT_MS = 5000;
-\`\`\`
-
-### File Headers
-
-\`\`\`typescript
-/**
- * User authentication service
  *
- * Handles login, logout, and session management.
- * Uses JWT tokens with 24-hour expiration.
+ * A thin, dependency-free scaffolder. It copies the spec-driven kit
+ * (CLAUDE.md, .claude/, .github/, docs/) into a target repo — new or existing —
+ * adapts a few placeholders, and prints next steps. The old interactive
+ * reservation wizard is gone: coordination is now worktree isolation + hooks + CI,
+ * not soft locks in a STATUS.md.
  *
- * @module services/auth
+ * Usage:
+ *   node init.js                 # install into the current directory
+ *   node init.js <path>          # install into <path>
+ *   node init.js --dir <path>    # same
+ *   node init.js --force         # overwrite existing kit files
+ *   node init.js --no-git        # skip creating the develop branch
+ *   node init.js --compat        # also drop the Cursor/Codex compat layer
+ *   node init.js --dry-run       # show what would happen, write nothing
+ *   node init.js --yes           # assume yes to prompts (non-interactive)
+ *   node init.js --help
+ *
+ * Zero runtime dependencies — Node 18+ only.
  */
-\`\`\`
 
----
+import { promises as fs } from 'node:fs';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
+import readline from 'node:readline';
 
-## Best Practices
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SOURCE = __dirname; // the template repo is the source of truth
 
-### Security
+// ----------------------------------------------------------------------------- ANSI helpers
+const c = {
+  reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
+  green: '\x1b[32m', yellow: '\x1b[33m', red: '\x1b[31m',
+  cyan: '\x1b[36m', blue: '\x1b[34m', magenta: '\x1b[35m',
+};
+const ok = (s) => console.log(`${c.green}✓${c.reset} ${s}`);
+const info = (s) => console.log(`${c.cyan}▸${c.reset} ${s}`);
+const warn = (s) => console.log(`${c.yellow}!${c.reset} ${s}`);
+const err = (s) => console.log(`${c.red}✗${c.reset} ${s}`);
+const skip = (s) => console.log(`${c.dim}• ${s}${c.reset}`);
 
-- Never commit secrets (.env files)
-- Validate all user input
-- Use parameterized queries (prevent SQL injection)
-- Hash passwords (never store plain text)
-- Keep dependencies updated
-
-### Performance
-
-- Optimize database queries
-- Use caching where appropriate
-- Minimize bundle size (code splitting)
-- Lazy load components/routes
-- Monitor performance metrics
-
-### Accessibility
-
-- Semantic HTML
-- ARIA labels where needed
-- Keyboard navigation
-- Screen reader testing
-- Color contrast compliance
-
----
-
-## Common Commands
-
-\`\`\`bash
-# Install dependencies
-${config.packageManager} install
-
-# Run development server
-${config.packageManager} run dev
-
-# Run tests
-${config.packageManager} test
-
-# Run linter
-${config.packageManager} run lint
-
-# Build for production
-${config.packageManager} run build
-
-# Run database migrations
-${config.packageManager} run migrate
-\`\`\`
-
----
-
-## Resources
-
-- [PLAYBOOK.md](./PLAYBOOK.md) - Agent coordination guide
-${config.agentMode === 'multi' ? '- [STATUS.md](./STATUS.md) - Real-time agent status\n' : ''}- [CHANGELOG.md](./CHANGELOG.md) - Release history
-- [backlog.md](../../backlog.md) - Task tracking
-
----
-
-**Questions? Check the PLAYBOOK or ask in team channel.**
-`;
-}
-
-function generateChangelog(config) {
-  return `# Changelog
-
-All notable changes to ${config.projectName} will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Added
-- Initial project setup
-- Agent coordination framework initialized
-
-## [0.1.0] - ${new Date().toISOString().split('T')[0]}
-
-### Added
-- Project structure created
-- Core documentation initialized
-- Development environment configured
-
----
-
-## How to Update This File
-
-### When to Add Entries
-
-Add entries when:
-- New features are added (\`### Added\`)
-- Existing features are changed (\`### Changed\`)
-- Features are deprecated (\`### Deprecated\`)
-- Features are removed (\`### Removed\`)
-- Bugs are fixed (\`### Fixed\`)
-- Security vulnerabilities are patched (\`### Security\`)
-
-### Format
-
-\`\`\`markdown
-## [Version] - YYYY-MM-DD
-
-### Added
-- New feature description
-
-### Fixed
-- Bug fix description
-
-### Changed
-- Change description
-\`\`\`
-
-### Version Numbers
-
-- **Major** (1.0.0): Breaking changes
-- **Minor** (0.1.0): New features, backward-compatible
-- **Patch** (0.0.1): Bug fixes, backward-compatible
-`;
-}
-
-// === BACKLOG GENERATION (INTELLIGENT 3-TIER SYSTEM) ===
-
-/**
- * Search for PRD files in common locations
- */
-function findPRD() {
-  const patterns = [
-    'PRD.md', 'PRODUCT_REQUIREMENTS.md', 'requirements.md', 'REQUIREMENTS.md',
-    'docs/PRD.md', 'docs/PRODUCT_REQUIREMENTS.md', 'docs/requirements.md',
-    'specifications/PRD.md', 'spec/PRD.md',
-    'PRD.txt', 'requirements.txt'
-  ];
-
-  // Check exact patterns first
-  for (const pattern of patterns) {
-    if (fs.existsSync(pattern)) {
-      return pattern;
+// ----------------------------------------------------------------------------- args
+function parseArgs(argv) {
+  const a = {
+    dir: process.cwd(), force: false, git: true, compat: false,
+    dryRun: false, yes: false, help: false, test: false,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    switch (arg) {
+      case '--dir': a.dir = path.resolve(argv[++i] || '.'); break;
+      case '--force': a.force = true; break;
+      case '--no-git': a.git = false; break;
+      case '--compat': a.compat = true; break;
+      case '--dry-run': a.dryRun = true; break;
+      case '--yes': case '-y': a.yes = true; break;
+      case '--help': case '-h': a.help = true; break;
+      case '--test': a.test = true; break; // used by `npm test`
+      default:
+        if (!arg.startsWith('-')) a.dir = path.resolve(arg);
     }
   }
-
-  // Search in docs/ directory for anything with "prd" or "requirement"
-  if (fs.existsSync('docs')) {
-    try {
-      const files = fs.readdirSync('docs');
-      const prd = files.find(f =>
-        f.toLowerCase().includes('prd') ||
-        f.toLowerCase().includes('requirement')
-      );
-      if (prd) return `docs/${prd}`;
-    } catch (error) {
-      // Ignore errors reading directory
-    }
-  }
-
-  return null;
+  return a;
 }
 
-/**
- * Extract epics/features from PRD using simple pattern matching
- */
-function extractEpicsFromPRD(prdContent) {
-  const epics = [];
+function printHelp() {
+  console.log(`
+${c.bold}agent-framework-template${c.reset} — spec-driven engineering kit installer (v2)
 
-  // Look for markdown headers (## Epic Name or # Epic Name)
-  const headerRegex = /^#{1,3}\s+(.+)$/gm;
-  let match;
-  const headers = [];
+${c.bold}Usage${c.reset}
+  node init.js [target-dir] [options]
 
-  while ((match = headerRegex.exec(prdContent)) !== null) {
-    const name = match[1].trim()
-      .replace(/^\d+\.\s*/, '') // Remove leading numbers
-      .replace(/^(Epic|Feature|Story):\s*/i, ''); // Remove "Epic:" prefix
+${c.bold}Options${c.reset}
+  --dir <path>   Install into <path> (default: current directory)
+  --force        Overwrite kit files that already exist
+  --no-git       Don't create the develop branch
+  --compat       Also install the Cursor / Codex compatibility layer
+  --dry-run      Print actions without writing anything
+  --yes, -y      Non-interactive; assume yes
+  --help, -h     Show this help
 
-    if (name.length > 5 && name.length < 100) { // Filter reasonable epic names
-      headers.push(name);
-    }
-  }
+${c.bold}What it installs${c.reset}
+  CLAUDE.md                  the constitution (branch rules, the loop, DoD)
+  .claude/                   hooks, scripts (guard-branch, quality-gate, worktree), agents, skills
+  .github/                   PR template, CODEOWNERS, pr-validation workflow
+  docs/                      where PRDs and backlog files land
+  AGENTS.md  (--compat)      cross-tool rules for Cursor / Codex / Copilot
 
-  // If found headers, use them
-  if (headers.length > 0 && headers.length <= 20) {
-    return headers.slice(0, 10).map(name => ({
-      name,
-      description: '',
-      priority: 'MEDIUM',
-      tasks: []
-    }));
-  }
-
-  // Fallback: Look for numbered lists
-  const numberedRegex = /^\d+\.\s+([^\n]+)/gm;
-  const numbered = [];
-
-  while ((match = numberedRegex.exec(prdContent)) !== null) {
-    const name = match[1].trim();
-    if (name.length > 5 && name.length < 100) {
-      numbered.push(name);
-    }
-  }
-
-  if (numbered.length > 0) {
-    return numbered.slice(0, 10).map(name => ({
-      name,
-      description: '',
-      priority: 'MEDIUM',
-      tasks: []
-    }));
-  }
-
-  return [];
+After install, in Claude Code:  ${c.cyan}/spec-flow "<feature idea>"${c.reset}
+`);
 }
 
-/**
- * Generate suggested tasks for an epic
- */
-function generateTasksForEpic(epic) {
-  const tasks = [];
-  const epicName = epic.name;
-
-  // Common task patterns
-  tasks.push(`Design ${epicName} architecture`);
-
-  if (epicName.toLowerCase().includes('api') || epicName.toLowerCase().includes('backend')) {
-    tasks.push(`Implement ${epicName} API endpoints`);
-    tasks.push(`Add database migrations for ${epicName}`);
-  } else if (epicName.toLowerCase().includes('ui') || epicName.toLowerCase().includes('frontend') || epicName.toLowerCase().includes('page')) {
-    tasks.push(`Create ${epicName} UI components`);
-    tasks.push(`Implement ${epicName} user interface`);
-  } else {
-    tasks.push(`Implement ${epicName} backend logic`);
-    tasks.push(`Implement ${epicName} frontend`);
-  }
-
-  tasks.push(`Write tests for ${epicName}`);
-  tasks.push(`Update documentation for ${epicName}`);
-
-  return tasks;
-}
-
-/**
- * Generate backlog markdown content from epics
- */
-function generateBacklogContent(epics, config) {
-  console.log(chalk.cyan('  📝 Generating backlog structure...'));
-
-  let taskCounter = 1;
-  const activeTasks = [];
-  const backlogTasks = [];
-
-  console.log(chalk.gray(`  → Processing ${epics.length} epics...`));
-
-  epics.forEach((epic, epicIdx) => {
-    const epicTasks = epic.tasks && epic.tasks.length > 0
-      ? epic.tasks
-      : generateTasksForEpic(epic);
-
-    console.log(chalk.gray(`  → Epic ${epicIdx + 1}/${epics.length}: "${epic.name}" (${epicTasks.length} tasks)`));
-
-    epicTasks.forEach((task, taskIdx) => {
-      const taskEntry = {
-        number: taskCounter++,
-        task: task,
-        owner: config.agentMode === 'multi' ? '-' : null,
-        priority: epic.priority || 'MEDIUM',
-        effort: '2-4h',
-        dependencies: taskIdx === 0 ? '-' : `#${taskCounter - 2}`,
-        status: taskIdx < 2 ? '⏳ TODO' : '📋 BACKLOG',
-        epic: epic.name,
-        notes: ''
-      };
-
-      if (taskIdx < 2) {
-        activeTasks.push(taskEntry);
-      } else {
-        backlogTasks.push(taskEntry);
-      }
+// ----------------------------------------------------------------------------- prompt
+function ask(question, def = 'y') {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`${c.yellow}?${c.reset} ${question} ${c.dim}(${def})${c.reset} `, (answer) => {
+      rl.close();
+      resolve((answer || def).trim().toLowerCase());
     });
   });
-
-  console.log(chalk.green(`  ✓ Generated ${activeTasks.length} active tasks and ${backlogTasks.length} backlog tasks`));
-
-  const renderTaskRow = (t) => config.agentMode === 'multi'
-    ? `| ${t.number} | ${t.task} | ${t.owner} | ${t.status} | ${t.notes || '-'} |`
-    : `| ${t.number} | ${t.task} | ${t.status} | ${t.notes || '-'} |`;
-
-  const tableHeader = config.agentMode === 'multi'
-    ? `| # | Task | Owner | Status | Notes |\n|---|------|-------|--------|-------|`
-    : `| # | Task | Status | Notes |\n|---|------|--------|-------|`;
-
-  const currentDate = new Date().toISOString().split('T')[0];
-  const dateFormatted = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-
-  return `# ${config.projectName} – Active Backlog
-
-> **Last Updated:** ${dateFormatted} (Framework Initialization)
-> **Scope:** ${config.currentPhase} development
-> **Mode:** ${config.agentMode === 'single' ? 'Single Agent' : `Multi-Agent (${config.agentCount || 2} agents)`}
-${config.agentMode === 'multi' ? `> **Active Agents:** ${config.agents ? config.agents.map(a => a.name).join(', ') : 'To be assigned'}` : ''}
-
----
-
-## 🚀 Current Focus
-
-${epics.length > 0 ? `- ${epics.slice(0, 3).map(e => e.name).join('\n- ')}` : '- Define project scope and initial features'}
-- Complete initial setup and configuration
-- Establish development workflow${config.agentMode === 'multi' ? '\n- Coordinate agent responsibilities and file ownership' : ''}
-
----
-
-## 📋 Active Tasks
-
-${tableHeader}
-${activeTasks.length > 0 ? activeTasks.map(renderTaskRow).join('\n') : `| 1 | Project setup and initialization | ${config.agentMode === 'multi' ? '- | ' : ''}✅ Complete | Framework generated |`}
-
----
-
-## 🚫 Blockers
-
-${config.agentMode === 'multi' ? '- None — All agents ready to start work' : '- None — Ready to begin development'}
-
----
-
-## 🐞 Open Issues (Require Fix + Retest)
-
-| ID | Title | Owner | Status / Next Action |
-|---|---|---|---|
-| - | No issues yet | - | Track issues as they arise |
-
-**Issue Template:**
-\`\`\`markdown
-| YYYY-MM-DD-## | Issue title | Owner | Status / Next Action |
-\`\`\`
-
----
-
-## 📌 Technical Debt (Track Items for Future Cleanup)
-
-1. **Initial Setup Items**
-   - Review and optimize initial configuration
-   - Add comprehensive error handling
-   - Implement logging and monitoring
-   ${config.agentMode === 'multi' ? '- Establish agent coordination patterns' : ''}
-
-**Debt Template:**
-\`\`\`markdown
-1. **Item Category**
-   - Specific item description
-   - Impact and priority
-   - Proposed solution
-\`\`\`
-
----
-
-## 🔮 Backlog (Future Work)
-
-${tableHeader}
-${backlogTasks.length > 0 ? backlogTasks.map(renderTaskRow).join('\n') : `| - | Additional features to be defined | ${config.agentMode === 'multi' ? '- | ' : ''}📋 BACKLOG | Based on PRD or requirements |`}
-
----
-
-## 📦 Epics / Features Breakdown
-
-${epics.map((epic, idx) => {
-  const epicTasks = epic.tasks && epic.tasks.length > 0 ? epic.tasks : generateTasksForEpic(epic);
-  return `**Epic ${idx + 1}: ${epic.name}**
-${epic.description ? `- **Description:** ${epic.description}\n` : ''}- **Priority:** ${epic.priority}
-- **Status:** 🔄 Planned
-- **Tasks:** ${epicTasks.length} tasks (${epicTasks.filter((_, i) => i < 2).length} active, ${epicTasks.length - 2} backlog)
-- **Acceptance Criteria:**
-  - Design and architecture documented
-  - Core functionality implemented
-  - Tests written and passing
-  - Documentation updated
-`;
-}).join('\n')}
-
-**Epic Template:**
-\`\`\`markdown
-**Epic #: Feature Name**
-- **Description:** What this epic delivers
-- **Priority:** HIGH | MEDIUM | LOW
-- **Status:** 🔄 Planned | 🚧 In Progress | ✅ Complete
-- **Tasks:** List of sub-tasks
-- **Acceptance Criteria:**
-  - Criterion 1
-  - Criterion 2
-\`\`\`
-
----
-
-## ✅ Completed Tasks
-
-${tableHeader}
-| 0 | Framework initialized | ${config.agentMode === 'multi' ? 'System | ' : ''}✅ Complete | Agent coordination framework generated on ${currentDate} |
-
----
-
-## 📝 Task Management Guidelines
-
-### Adding New Tasks
-
-1. **Assign Task Number:** Use next sequential number
-2. **Set Priority:** HIGH (critical) | MEDIUM (important) | LOW (nice-to-have)
-3. **Estimate Effort:** Be realistic (1-2h, 2-4h, 4-8h, 1-2d)
-4. **Identify Dependencies:** Link to prerequisite tasks (#N)
-5. **Assign Owner:** ${config.agentMode === 'multi' ? 'Specify agent based on file ownership zones' : 'Self-assign or leave blank'}
-
-### Task Status Legend
-
-- ⏳ **TODO** — Ready to start, no blockers
-- 🔄 **In Progress** — Currently being worked on
-- 🚧 **Blocked** — Waiting on dependency or external input
-- 📋 **BACKLOG** — Planned but not yet ready
-- ✅ **Complete** — Finished and verified
-
-### Task Detail Template
-
-When creating detailed task descriptions:
-
-\`\`\`markdown
-**Task #XX: [Task Name]**
-
-**Description:** Clear explanation of what needs to be done
-
-**Acceptance Criteria:**
-- [ ] Specific, testable criterion 1
-- [ ] Specific, testable criterion 2
-- [ ] Documentation updated
-
-**Technical Requirements:**
-- Implementation details
-- Architecture decisions
-- Performance considerations
-
-**Files to Modify:**
-- \`path/to/file1.ts\` - What changes
-- \`path/to/file2.tsx\` - What changes
-
-**Dependencies:**
-- Task #XX must be complete first
-- Requires API keys / credentials / access
-
-**Testing:**
-- Unit tests for X
-- Integration tests for Y
-- Manual QA checklist
-\`\`\`
-
----
-
-## 🔗 References
-
-- [.agent-framework/README.md](./.agent-framework/README.md) — Framework overview and setup
-- [.agent-framework/core/PLAYBOOK.md](./.agent-framework/core/PLAYBOOK.md) — Agent coordination guide
-${config.agentMode === 'multi' ? '- [.agent-framework/core/STATUS.md](./.agent-framework/core/STATUS.md) — Real-time agent coordination\n' : ''}- [.agent-framework/core/RULES.md](./.agent-framework/core/RULES.md) — Project standards and conventions
-- [.agent-framework/core/CHANGELOG.md](./.agent-framework/core/CHANGELOG.md) — Release history
-
----
-
-**Generated by [agent-framework-template](https://github.com/andrelnunes/agent-framework-template) v1.0**
-**Built by [André Nunes](https://github.com/andrelnunes) | [Tekverso](https://tekverso.com)**
-**Framework initialized:** ${currentDate}
-`;
 }
 
-/**
- * Interactive backlog creation when no PRD exists
- */
-async function interactiveBacklogCreation(config) {
-  console.log(chalk.yellow('\n🎯 Let\'s create your initial backlog\n'));
-
-  const { epicCount } = await inquirer.prompt([{
-    type: 'number',
-    name: 'epicCount',
-    message: 'How many main features/epics are you planning?',
-    default: 3,
-    validate: (input) => (input > 0 && input <= 20) || 'Please enter between 1 and 20'
-  }]);
-
-  const epics = [];
-
-  for (let i = 0; i < epicCount; i++) {
-    console.log(chalk.cyan(`\nEpic #${i + 1}:`));
-
-    const epic = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'name',
-        message: 'Epic name:',
-        validate: (input) => input.trim().length > 0 || 'Epic name is required'
-      },
-      {
-        type: 'input',
-        name: 'description',
-        message: 'Brief description (optional):',
-        default: ''
-      },
-      {
-        type: 'list',
-        name: 'priority',
-        message: 'Priority:',
-        choices: ['HIGH', 'MEDIUM', 'LOW'],
-        default: 'MEDIUM'
-      }
-    ]);
-
-    epic.tasks = generateTasksForEpic(epic);
-    epics.push(epic);
-  }
-
-  return epics;
-}
-
-/**
- * Main backlog generation function with 3-tier fallback
- */
-async function generateBacklog(config) {
-  console.log(chalk.cyan('\n📋 Initializing backlog generation...\n'));
-  console.log(chalk.gray('Using 3-tier approach: Existing → PRD → Interactive\n'));
-
-  // Tier 1: Check for existing backlog.md
-  console.log(chalk.cyan('🔍 Tier 1: Checking for existing backlog.md...'));
-  if (fs.existsSync('backlog.md')) {
-    const content = fs.readFileSync('backlog.md', 'utf8');
-    const charCount = content.trim().length;
-    console.log(chalk.gray(`  → Found backlog.md (${charCount} characters)`));
-
-    if (charCount > 200) {  // Has substantial content
-      console.log(chalk.green('  ✓ Existing backlog has substantial content'));
-      const { keepExisting } = await inquirer.prompt([{
-        type: 'confirm',
-        name: 'keepExisting',
-        message: 'Keep existing backlog.md?',
-        default: true
-      }]);
-
-      if (keepExisting) {
-        console.log(chalk.green('✅ Tier 1: Using existing backlog.md\n'));
-        return content; // Return existing content
-      } else {
-        console.log(chalk.yellow('⚠️  Tier 1: User chose to regenerate backlog\n'));
-      }
+// ----------------------------------------------------------------------------- fs helpers
+async function copyTree(src, dest, opts) {
+  const { force, dryRun, skipNames = [] } = opts;
+  const entries = await fs.readdir(src, { withFileTypes: true });
+  let copied = 0, skipped = 0;
+  for (const entry of entries) {
+    if (skipNames.includes(entry.name)) continue;
+    const s = path.join(src, entry.name);
+    const d = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      if (!dryRun) await fs.mkdir(d, { recursive: true });
+      const res = await copyTree(s, d, opts);
+      copied += res.copied; skipped += res.skipped;
     } else {
-      console.log(chalk.yellow('  ⚠️  Existing backlog is too short (< 200 chars), will regenerate\n'));
-    }
-  } else {
-    console.log(chalk.gray('  → No backlog.md found\n'));
-  }
-
-  // Tier 2: Search for PRD
-  console.log(chalk.cyan('🔍 Tier 2: Searching for PRD file...'));
-  const prdFile = findPRD();
-  if (prdFile) {
-    console.log(chalk.yellow(`  → Found PRD: ${prdFile}`));
-
-    const { usePRD } = await inquirer.prompt([{
-      type: 'confirm',
-      name: 'usePRD',
-      message: 'Generate backlog from PRD file?',
-      default: true
-    }]);
-
-    if (usePRD) {
-      const spinner = ora('Reading PRD and extracting epics...').start();
-
-      try {
-        const prdContent = fs.readFileSync(prdFile, 'utf8');
-        const prdSize = (prdContent.length / 1024).toFixed(1);
-        spinner.text = `Reading PRD (${prdSize} KB) and extracting epics...`;
-
-        const epics = extractEpicsFromPRD(prdContent);
-
-        if (epics.length === 0) {
-          spinner.warn('No epics found in PRD - falling back to Tier 3');
-          console.log(chalk.gray('  → PRD structure not recognized or no headers found\n'));
-        } else {
-          spinner.succeed(`Extracted ${epics.length} epics from PRD`);
-          console.log(chalk.green(`  ✓ Epics found: ${epics.map(e => e.name).join(', ')}`));
-
-          // Generate tasks for each epic
-          console.log(chalk.cyan('\n  📝 Generating tasks for each epic...'));
-          epics.forEach((epic, idx) => {
-            epic.tasks = generateTasksForEpic(epic);
-            console.log(chalk.gray(`    ${idx + 1}. ${epic.name}: ${epic.tasks.length} tasks`));
-          });
-
-          console.log(chalk.green('\n✅ Tier 2: Backlog generated from PRD\n'));
-          return generateBacklogContent(epics, config);
-        }
-      } catch (error) {
-        spinner.fail('Failed to read PRD file');
-        console.error(chalk.red(`  ✗ Error: ${error.message}\n`));
+      if (existsSync(d) && !force) {
+        skipped++;
+        skip(`exists, skipped: ${path.relative(dest, d) || entry.name}`);
+        continue;
       }
-    } else {
-      console.log(chalk.gray('  → User declined PRD generation\n'));
+      if (!dryRun) {
+        await fs.mkdir(path.dirname(d), { recursive: true });
+        await fs.copyFile(s, d);
+        if (entry.name.endsWith('.sh')) await fs.chmod(d, 0o755);
+      }
+      copied++;
     }
-  } else {
-    console.log(chalk.gray('  → No PRD file found\n'));
   }
-
-  // Tier 3: Interactive capture
-  console.log(chalk.cyan('🔍 Tier 3: Interactive backlog creation'));
-  console.log(chalk.gray('No existing backlog or PRD found, or user declined automated generation.\n'));
-
-  const { createInteractive } = await inquirer.prompt([{
-    type: 'confirm',
-    name: 'createInteractive',
-    message: 'Create backlog interactively?',
-    default: true
-  }]);
-
-  if (createInteractive) {
-    console.log(chalk.green('  ✓ Starting interactive wizard...\n'));
-    const epics = await interactiveBacklogCreation(config);
-    return generateBacklogContent(epics, config);
-  } else {
-    // Return minimal template
-    console.log(chalk.gray('Creating minimal backlog template...'));
-    return generateBacklogContent([
-      { name: 'Setup project', description: 'Initial project setup', priority: 'HIGH', tasks: [] },
-      { name: 'First feature', description: 'Define and implement first feature', priority: 'MEDIUM', tasks: [] }
-    ], config);
-  }
+  return { copied, skipped };
 }
 
-function generateFrameworkReadme(config) {
-  return `# ${config.projectName} - Agent Framework
+async function copyFile(src, dest, { force, dryRun }) {
+  if (!existsSync(src)) return false;
+  if (existsSync(dest) && !force) {
+    skip(`exists, skipped: ${path.basename(dest)}`);
+    return false;
+  }
+  if (!dryRun) {
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.copyFile(src, dest);
+  }
+  return true;
+}
 
-This directory contains the ${config.agentMode === 'single' ? 'single-agent' : 'multi-agent'} coordination framework for ${config.projectName}.
+// ----------------------------------------------------------------------------- git
+function git(cmd, cwd) {
+  return execSync(`git ${cmd}`, { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+}
+function tryGit(cmd, cwd) {
+  try { return git(cmd, cwd); } catch { return null; }
+}
+function isGitRepo(dir) {
+  return tryGit('rev-parse --is-inside-work-tree', dir) === 'true';
+}
+function branchExists(dir, name) {
+  return tryGit(`show-ref --verify --quiet refs/heads/${name}`, dir) !== null;
+}
 
-## 📁 Directory Structure
+// ----------------------------------------------------------------------------- compat layer
+const AGENTS_MD = `# AGENTS.md — cross-tool rules (Cursor / Codex / Copilot)
 
-\`\`\`
-.agent-framework/
-├── README.md              # This file
-├── core/                  # Core coordination files
-│   ├── PLAYBOOK.md       # ${config.agentMode === 'single' ? 'Development guide' : 'Multi-agent coordination guide'}
-${config.agentMode === 'multi' ? '│   ├── STATUS.md         # Real-time agent dashboard\n' : ''}│   ├── RULES.md          # Project standards
-│   └── CHANGELOG.md      # Release history
-\`\`\`
+This repo runs a **spec-driven workflow**. The full, enforced version lives in
+\`CLAUDE.md\` and is automated by Claude Code skills + hooks. This file is the
+plain-markdown mirror so Cursor, OpenAI Codex, and Copilot follow the same rules.
 
-## 🚀 Quick Start
+## The loop
+PRD → backlog task → \`feat/*\` branch → **acceptance tests (from the spec)** → implement →
+quality gate → PR to \`develop\`.
 
-### ${config.agentMode === 'single' ? 'For Solo Development' : 'For Multi-Agent Teams'}
+## Hard rules
+1. **Never commit or push to \`main\` or \`develop\`.** They only advance through reviewed PRs.
+   All work happens on \`feat/<name>\` (or \`fix/\` / \`chore/\`) branches cut from \`develop\`.
+2. **No work without a spec.** Every change traces to a backlog task in \`docs/backlog/{feature}.md\`,
+   which traces to a PRD in \`docs/{feature}-prd.md\`.
+3. **Acceptance tests come first.** When you take a task, derive a test from each acceptance
+   criterion and **tag it with the task id** (in the test name/file/comment), e.g.
+   \`describe('WND-03: …')\`. Write the tests before the implementation.
+4. **A task is done — and committable — only when those tests pass.** Run the gate WITH the
+   task id before committing: \`.claude/scripts/quality-gate.sh <task-id>\`. It fails if no test
+   references the task id or if any check is red. Fix the code, never weaken a test.
+5. **Conventional Commits**, one logical change each, ending with \`Refs: <task-id>\`.
+6. **PRs target \`develop\`**, use \`.github/pull_request_template.md\` fully filled in, link the
+   task, and map each acceptance criterion to its test.
 
-${config.agentMode === 'single' ? `
-1. **Before starting work:**
-   - Read [backlog.md](../backlog.md) for current tasks
-   - Read [core/RULES.md](core/RULES.md) for standards
-   - Pull latest code: \`git pull origin ${config.mainBranch}\`
+## Definition of Done
+- Spec-derived acceptance tests exist (one per criterion, tagged with the task id) and pass.
+- Every acceptance criterion of the task is met.
+- \`.claude/scripts/quality-gate.sh <task-id>\` is green (acceptance check + lint/typecheck/test).
+- Branch correctly named, Conventional Commit, PR to \`develop\` with the template filled.
+- An independent review confirmed each criterion maps to a passing test.
 
-2. **During development:**
-   - Commit frequently with clear messages
-   - Run tests before pushing
-   - Follow coding standards
-
-3. **After completing work:**
-   - Update backlog.md (mark task complete)
-   - Update CHANGELOG.md (if user-facing changes)
-   - Push your changes
-` : `
-1. **Before starting ANY task:**
-   - Read [backlog.md](../backlog.md) for task details
-   - Read [core/STATUS.md](core/STATUS.md) for coordination
-   - Read [core/RULES.md](core/RULES.md) for standards
-   - Reserve files in STATUS.md
-   - Pull latest code: \`git pull origin ${config.mainBranch}\`
-
-2. **During work:**
-   - Update STATUS.md heartbeat every 2 hours
-   - Commit frequently
-   - Report blockers immediately
-
-3. **After completing task:**
-   - Update backlog.md (mark complete)
-   - Update CHANGELOG.md (user-facing changes)
-   - Update STATUS.md (release files, move to completions)
-   - Push your changes
-`}
-
-## 📚 Core Files
-
-### [core/PLAYBOOK.md](core/PLAYBOOK.md)
-${config.agentMode === 'single' ? 'Development workflow and best practices guide.' : 'Comprehensive multi-agent coordination guide with mandatory protocols.'}
-
-${config.agentMode === 'multi' ? `### [core/STATUS.md](core/STATUS.md)
-Real-time coordination dashboard:
-- Active agents and current tasks
-- File reservations (prevent conflicts)
-- Blockers and coordination requests
-- Recent completions
-
-` : ''}### [core/RULES.md](core/RULES.md)
-Project standards and best practices:
-- Commit message format
-- Code quality standards
-- File structure
-- Testing requirements
-
-### [core/CHANGELOG.md](core/CHANGELOG.md)
-Release history and user-facing changes (Keep a Changelog format).
-
-## 🎯 Agent Platform Setup
-
-### Claude Code
-
-1. Open project in Claude Code
-2. Tell Claude: "Read .agent-framework/core/PLAYBOOK.md and start working on Task #X from backlog.md"
-3. Claude will follow the framework automatically
-
-### Cursor
-
-1. Add to \`.cursorrules\`:
-   \`\`\`
-   Before starting ANY task:
-   1. Read .agent-framework/core/PLAYBOOK.md
-   2. Read backlog.md
-   ${config.agentMode === 'multi' ? '3. Read .agent-framework/core/STATUS.md\n   4. Follow all protocols\n' : '3. Follow all protocols\n'}
-   \`\`\`
-
-2. Start agent: "Follow the framework and work on Task #X"
-
-### OpenAI Codex / GitHub Copilot
-
-1. Set up custom instructions to read framework files first
-2. Prompt: "Read .agent-framework/core/PLAYBOOK.md then work on Task #X"
-
-## ⚙️ Configuration
-
-### Project Settings
-
-${Object.entries(config).filter(([key]) => !key.includes('Zone') && !key.includes('password') && key !== 'mode').map(([key, value]) => `- **${key}:** ${Array.isArray(value) ? value.join(', ') : value}`).join('\n')}
-
-### ${config.agentMode === 'multi' ? 'Agent Roles' : 'Development Mode'}
-
-${config.agentMode === 'multi' && config.agentRoles ? config.agentRoles.map(role => `- **${role} Agent:** ${role} development`).join('\n') : '- **Single Agent:** Solo development mode'}
-
-## 🔧 Customization
-
-To customize this framework:
-
-1. Edit [core/PLAYBOOK.md](core/PLAYBOOK.md) - Update workflows
-2. Edit [core/RULES.md](core/RULES.md) - Update standards
-${config.agentMode === 'multi' ? '3. Edit [core/STATUS.md](core/STATUS.md) - Update agent list\n' : ''}3. Edit [backlog.md](../backlog.md) - Add your tasks
-
-## 📖 Documentation
-
-- **[PLAYBOOK.md](core/PLAYBOOK.md)** - Start here
-${config.agentMode === 'multi' ? '- **[STATUS.md](core/STATUS.md)** - Check before starting work\n' : ''}- **[RULES.md](core/RULES.md)** - Follow these standards
-- **[CHANGELOG.md](core/CHANGELOG.md)** - Track changes here
-- **[../backlog.md](../backlog.md)** - Task list
-
-## 🆘 Help
-
-### Common Issues
-
-**Q: Where do I start?**
-A: Read PLAYBOOK.md → Check backlog.md → Start first task
-
-${config.agentMode === 'multi' ? `**Q: File is reserved by another agent?**
-A: Check STATUS.md → Wait for release or coordinate
-
-` : ''}**Q: How do I commit?**
-A: Follow RULES.md commit format → Reference task number
-
-**Q: When do I update CHANGELOG?**
-A: Only for user-facing changes (features, fixes)
-
----
-
-**Framework Version:** 1.0
-**Generated:** ${new Date().toISOString().split('T')[0]}
-**Mode:** ${config.agentMode === 'single' ? 'Single Agent' : 'Multi-Agent'}
-
----
-
-**Framework generated by [agent-framework-template](https://github.com/andrelnunes/agent-framework-template)**
-**Built by André Nunes | Tekverso**
+> Cursor users: this file doubles as your \`.cursorrules\` source — point Cursor at it.
+> Codex/Copilot users: paste the "Hard rules" + "Definition of Done" into your custom instructions.
 `;
+
+const CURSORRULES = `# Cursor rules — spec-driven workflow
+# Mirror of CLAUDE.md / AGENTS.md. See those for the full reference.
+
+Before starting ANY task:
+1. Read CLAUDE.md (the constitution) and docs/backlog/{feature}.md (the task).
+2. Confirm you are on a feat/* / fix/* / chore/* branch, NOT main or develop.
+3. Confirm a backlog task exists for this work; if not, stop and create the spec first.
+
+Branch model (non-negotiable):
+- main and develop are protected — never commit or push to them.
+- All work on feat/<name> branches cut from develop.
+
+Acceptance tests come FIRST:
+- When you take a task, write a test for each acceptance criterion BEFORE implementing.
+- Tag every test with the task id (test name, file name, or comment), e.g. describe('WND-03: ...').
+- The task is done — and committable — only once those tests pass.
+
+Before committing:
+- Run .claude/scripts/quality-gate.sh <task-id>. It fails if no test references the task id,
+  or if lint/typecheck/test are red. Must pass before you commit. Fix code, never weaken tests.
+- Use Conventional Commits, one logical change, ending with: Refs: <task-id>
+
+Pull requests:
+- Target develop, never main. Fill every section of .github/pull_request_template.md. Link the
+  task and map each acceptance criterion to the test that proves it.
+
+Definition of Done: spec-derived acceptance tests exist + pass; all criteria met; gate green;
+PR open to develop with template filled.
+`;
+
+async function installCompat(dir, opts) {
+  info('Installing Cursor / Codex compatibility layer…');
+  const a = path.join(dir, 'AGENTS.md');
+  const cr = path.join(dir, '.cursorrules');
+  if (!opts.dryRun) {
+    if (!existsSync(a) || opts.force) await fs.writeFile(a, AGENTS_MD);
+    if (!existsSync(cr) || opts.force) await fs.writeFile(cr, CURSORRULES);
+  }
+  ok('compat layer: AGENTS.md, .cursorrules');
 }
 
-// === GIT INTEGRATION ===
-async function setupGitIntegration(config) {
-  if (!config.enablePreCommitHooks && config.agentMode === 'single') {
-    return; // Skip git setup for single agent without hooks
-  }
+// ----------------------------------------------------------------------------- main
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  if (opts.help) { printHelp(); return; }
+  if (opts.test) { return selfTest(); }
 
-  const spinner = ora('Setting up git integration...').start();
+  const dir = opts.dir;
 
-  try {
-    // Check if git repo exists
-    try {
-      await execAsync('git rev-parse --git-dir');
-    } catch {
-      spinner.info('Not a git repository - skipping git integration');
-      return;
-    }
+  console.log(`\n${c.bold}${c.magenta}agent-framework-template${c.reset} ${c.dim}· spec-driven engineering kit (v2)${c.reset}\n`);
+  info(`target: ${c.bold}${dir}${c.reset}`);
+  if (opts.dryRun) warn('dry run — nothing will be written');
 
-    // Add .gitignore entry for agent cache
-    const gitignorePath = path.join(process.cwd(), '.gitignore');
-    let gitignore = '';
-
-    if (fs.existsSync(gitignorePath)) {
-      gitignore = fs.readFileSync(gitignorePath, 'utf-8');
-    }
-
-    if (!gitignore.includes('.agent-cache')) {
-      fs.appendFileSync(gitignorePath, '\n# Agent Framework\n.agent-cache/\n.agent-temp/\n');
-    }
-
-    // Create initial commit
-    await execAsync('git add .agent-framework/ backlog.md');
-    await execAsync(`git commit -m "chore: Initialize agent coordination framework
-
-- Add ${config.agentMode} agent framework
-- Configure ${config.agentRoles ? config.agentRoles.length : 1} agent(s)
-- Set up coordination protocols
-
-🤖 Generated with agent-framework-template v1.0"`);
-
-    spinner.succeed('Git integration complete!');
-  } catch (error) {
-    spinner.warn('Git integration skipped (no repository or permission issue)');
-  }
-}
-
-// === PRE-COMMIT HOOKS ===
-async function setupPreCommitHooks(config) {
-  if (!config.enablePreCommitHooks) {
+  if (path.resolve(dir) === path.resolve(SOURCE)) {
+    err('Refusing to install the template into its own source directory. Pass a target: node init.js <path>');
+    process.exitCode = 1;
     return;
   }
 
-  const spinner = ora('Setting up pre-commit hooks...').start();
+  if (!existsSync(dir)) {
+    if (!opts.dryRun) await fs.mkdir(dir, { recursive: true });
+    ok(`created ${dir}`);
+  }
 
-  try {
-    const hooksDir = path.join(process.cwd(), '.git', 'hooks');
-    const preCommitPath = path.join(hooksDir, 'pre-commit');
+  const entries = existsSync(dir) ? await fs.readdir(dir) : [];
+  const isExisting = existsSync(path.join(dir, '.git')) || entries.length > 0;
+  info(isExisting ? 'detected an existing project — installing alongside your code' : 'empty target — fresh scaffold');
 
-    // Check if git repo exists
-    if (!fs.existsSync(hooksDir)) {
-      spinner.info('Not a git repository - skipping pre-commit hooks');
-      return;
+  if (!opts.yes && !opts.dryRun) {
+    const a = await ask('Install the spec-driven kit here?', 'y');
+    if (a !== 'y' && a !== 'yes') { warn('aborted'); return; }
+  }
+
+  // --- copy the kit ---------------------------------------------------------
+  info('Copying kit files…');
+  await copyFile(path.join(SOURCE, 'CLAUDE.md'), path.join(dir, 'CLAUDE.md'), opts);
+
+  const claude = await copyTree(path.join(SOURCE, '.claude'), path.join(dir, '.claude'), {
+    ...opts,
+    // never copy local-only settings into a target project
+    skipNames: ['settings.local.json'],
+  });
+  const github = await copyTree(path.join(SOURCE, '.github'), path.join(dir, '.github'), opts);
+  await copyTree(path.join(SOURCE, 'docs'), path.join(dir, 'docs'), opts);
+
+  ok(`.claude/  (${claude.copied} files, ${claude.skipped} skipped)`);
+  ok(`.github/  (${github.copied} files, ${github.skipped} skipped)`);
+  ok('docs/');
+
+  // ensure scripts are executable in the target
+  if (!opts.dryRun) {
+    const scriptsDir = path.join(dir, '.claude', 'scripts');
+    if (existsSync(scriptsDir)) {
+      for (const f of await fs.readdir(scriptsDir)) {
+        if (f.endsWith('.sh')) await fs.chmod(path.join(scriptsDir, f), 0o755);
+      }
     }
+    // drop a local settings stub the framework owns (kept out of git by .gitignore)
+    const local = path.join(dir, '.claude', 'settings.local.json');
+    if (!existsSync(local)) await fs.writeFile(local, '{\n  "permissions": {}\n}\n');
+  }
+  ok('made .claude/scripts/*.sh executable');
 
-    const hookScript = generatePreCommitHook(config);
-    fs.writeFileSync(preCommitPath, hookScript);
-    fs.chmodSync(preCommitPath, '755');
+  if (opts.compat) await installCompat(dir, opts);
 
-    spinner.succeed('Pre-commit hooks installed!');
-  } catch (error) {
-    spinner.warn('Pre-commit hooks setup skipped');
+  await ensurePackageScripts(dir, opts);
+
+  if (opts.git && !opts.dryRun) {
+    await setupGit(dir, opts);
+  } else if (!opts.git) {
+    skip('git setup skipped (--no-git)');
+  }
+
+  printNextSteps(dir, opts);
+}
+
+async function ensurePackageScripts(dir, opts) {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!existsSync(pkgPath)) {
+    skip('no package.json — the quality gate skips missing scripts (fine for non-Node repos)');
+    return;
+  }
+  const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
+  pkg.scripts ||= {};
+  const defaults = {
+    lint: 'echo "no lint configured" && exit 0',
+    typecheck: 'echo "no typecheck configured" && exit 0',
+    test: 'echo "no tests configured" && exit 0',
+  };
+  const added = [];
+  for (const [k, v] of Object.entries(defaults)) {
+    if (!pkg.scripts[k]) { pkg.scripts[k] = v; added.push(k); }
+  }
+  if (added.length && !opts.dryRun) {
+    await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+    ok(`package.json: added placeholder scripts (${added.join(', ')}) — replace with real ones`);
+  } else if (!added.length) {
+    skip('package.json already defines lint/typecheck/test');
   }
 }
 
-function generatePreCommitHook(config) {
-  return `#!/bin/bash
-# Agent Framework Pre-Commit Hook
-# Generated by agent-framework-template v1.0
+async function setupGit(dir, opts) {
+  if (!isGitRepo(dir)) {
+    if (!opts.yes) {
+      const a = await ask('Not a git repo. Initialize one?', 'y');
+      if (a !== 'y' && a !== 'yes') { skip('skipped git init'); return; }
+    }
+    info('initializing git…');
+    tryGit('init', dir);
+    tryGit('add -A', dir);
+    tryGit('commit -m "chore: scaffold spec-driven framework (v2)"', dir);
+    tryGit('branch -M main', dir);
+    ok('git initialized on main');
+  }
 
-echo "🤖 Agent Framework: Running pre-commit checks..."
-
-# Check if STATUS.md was updated (multi-agent only)
-${config.agentMode === 'multi' ? `
-if git diff --cached --name-only | grep -q "backlog.md"; then
-  if ! git diff --cached --name-only | grep -q ".agent-framework/core/STATUS.md"; then
-    echo "⚠️  Warning: backlog.md changed but STATUS.md not updated"
-    echo "   Did you release your file reservations?"
-    echo ""
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      echo "❌ Commit aborted"
-      exit 1
-    fi
-  fi
-fi
-` : ''}
-
-# Check commit message format
-COMMIT_MSG_FILE=$1
-COMMIT_MSG=$(cat "$COMMIT_MSG_FILE" 2>/dev/null || echo "")
-
-${config.commitFormat === 'conventional' ? `
-if [[ ! "$COMMIT_MSG" =~ ^(feat|fix|docs|style|refactor|test|chore)(\\(.+\\))?: ]]; then
-  echo "❌ Invalid commit message format"
-  echo "   Expected: type(scope): subject"
-  echo "   Example: feat(auth): Add login functionality"
-  echo ""
-  echo "   Valid types: feat, fix, docs, style, refactor, test, chore"
-  exit 1
-fi
-` : ''}
-
-# Update timestamps in framework files
-${config.agentMode === 'multi' ? `
-if [ -f ".agent-framework/core/STATUS.md" ]; then
-  sed -i.bak "s/Last Updated:.*/Last Updated: $(date +%Y-%m-%d)/" .agent-framework/core/STATUS.md
-  rm -f .agent-framework/core/STATUS.md.bak
-  git add .agent-framework/core/STATUS.md
-fi
-` : ''}
-
-echo "✅ Pre-commit checks passed"
-exit 0
-`;
+  const current = tryGit('rev-parse --abbrev-ref HEAD', dir);
+  if (!branchExists(dir, 'develop')) {
+    if (!opts.yes) {
+      const a = await ask('Create the integration branch `develop`?', 'y');
+      if (a !== 'y' && a !== 'yes') { skip('skipped develop branch'); return; }
+    }
+    (tryGit('switch -c develop', dir) ?? tryGit('checkout -b develop', dir));
+    ok('created develop branch (push it: git push -u origin develop)');
+    if (current && current !== 'develop') tryGit(`switch ${current}`, dir);
+  } else {
+    skip('develop branch already exists');
+  }
 }
 
-// === SUCCESS MESSAGE ===
-function displaySuccessMessage(config) {
-  console.log(chalk.green.bold('\n✅ Framework initialized successfully!\n'));
-
-  console.log(chalk.cyan('📁 Generated Files:'));
-  console.log(chalk.white('  .agent-framework/'));
-  console.log(chalk.gray('    ├── README.md'));
-  console.log(chalk.gray('    └── core/'));
-  console.log(chalk.gray('        ├── PLAYBOOK.md'));
-  if (config.agentMode === 'multi') {
-    console.log(chalk.gray('        ├── STATUS.md'));
-  }
-  console.log(chalk.gray('        ├── RULES.md'));
-  console.log(chalk.gray('        └── CHANGELOG.md'));
-  console.log(chalk.gray('  backlog.md'));
-  if (config.enablePreCommitHooks) {
-    console.log(chalk.gray('  .git/hooks/pre-commit'));
-  }
-
-  console.log(chalk.cyan('\n🚀 Next Steps:\n'));
-  console.log(chalk.white('1.') + chalk.gray(' Read the framework guide:'));
-  console.log(chalk.yellow('   cat .agent-framework/README.md\n'));
-
-  console.log(chalk.white('2.') + chalk.gray(' Set up your AI agent:'));
-  console.log(chalk.gray('   • Claude Code: Tell Claude to read .agent-framework/core/PLAYBOOK.md'));
-  console.log(chalk.gray('   • Cursor: Add framework rules to .cursorrules'));
-  console.log(chalk.gray('   • Codex: Set custom instructions to read PLAYBOOK.md\n'));
-
-  console.log(chalk.white('3.') + chalk.gray(' Add your first task to backlog.md\n'));
-
-  console.log(chalk.white('4.') + chalk.gray(' Start developing with agent coordination!\n'));
-
-  console.log(chalk.cyan('📚 Documentation:'));
-  console.log(chalk.gray('   • Framework Guide: .agent-framework/README.md'));
-  console.log(chalk.gray('   • Agent Playbook: .agent-framework/core/PLAYBOOK.md'));
-  if (config.agentMode === 'multi') {
-    console.log(chalk.gray('   • Agent Status: .agent-framework/core/STATUS.md'));
-  }
-  console.log(chalk.gray('   • Project Rules: .agent-framework/core/RULES.md'));
-  console.log(chalk.gray('   • Task Backlog: backlog.md\n'));
-
-  console.log(chalk.green('Happy coding with your AI agent team! 🤖\n'));
-
-  console.log(chalk.gray('─'.repeat(55)));
-  console.log(chalk.cyan('\n✨ Built with ❤️  by André Nunes | Tekverso'));
-  console.log(chalk.gray('   github.com/andrelnunes'));
-  console.log(chalk.gray('   linkedin.com/in/andrelnunes'));
-  console.log(chalk.gray('   instagram.com/andrenunes.tech\n'));
+function printNextSteps(dir, opts) {
+  const rel = path.relative(process.cwd(), dir) || '.';
+  console.log(`\n${c.bold}${c.green}Done.${c.reset} Spec-driven kit installed.\n`);
+  console.log(`${c.bold}Next steps${c.reset}`);
+  console.log(`  1. ${c.dim}cd ${rel}${c.reset}`);
+  console.log(`  2. Push develop and set up branch protection (README → "Server-side enforcement").`);
+  console.log(`  3. In Claude Code:  ${c.cyan}/spec-flow "<your feature idea>"${c.reset}`);
+  console.log(`     ${c.dim}or step through: product-requirements → /spec-backlog → /task-execute → /ship-pr${c.reset}`);
+  console.log(`  4. Parallel work:   ${c.cyan}.claude/scripts/worktree.sh new <TASK-ID>${c.reset}\n`);
+  if (opts.dryRun) warn('this was a dry run — re-run without --dry-run to write files');
 }
 
-// === RUN ===
-main();
+// ----------------------------------------------------------------------------- self test (npm test)
+async function selfTest() {
+  console.log('Running installer self-test…');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aft-test-'));
+  let failed = 0;
+  try {
+    process.argv = ['node', 'init.js', '--dir', tmp, '--yes', '--no-git', '--compat'];
+    await main();
+    const checks = [
+      'CLAUDE.md',
+      '.claude/settings.json',
+      '.claude/scripts/guard-branch.sh',
+      '.claude/scripts/quality-gate.sh',
+      '.claude/scripts/worktree.sh',
+      '.claude/agents/feature-implementer.md',
+      '.claude/skills/spec-flow/SKILL.md',
+      '.github/workflows/pr-validation.yml',
+      '.github/pull_request_template.md',
+      'docs/backlog/.gitkeep',
+      'AGENTS.md',
+      '.cursorrules',
+    ];
+    for (const f of checks) {
+      if (existsSync(path.join(tmp, f))) ok(`installed ${f}`);
+      else { err(`MISSING ${f}`); failed++; }
+    }
+    // local settings must NOT be copied from the template source
+    const mode = (await fs.stat(path.join(tmp, '.claude/scripts/guard-branch.sh'))).mode;
+    if (mode & 0o100) ok('scripts are executable'); else { err('scripts not executable'); failed++; }
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+  console.log('');
+  if (failed) { err(`self-test FAILED (${failed} issue(s))`); process.exitCode = 1; }
+  else ok('self-test passed');
+}
+
+main().catch((e) => { err(e?.stack || String(e)); process.exitCode = 1; });
