@@ -75,12 +75,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to diff against the base branch
       - name: A test must reference the task id
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          # Docs/chore exemption: acceptance tests gate BEHAVIORAL change, not doc edits.
+          # Skip when the branch is docs/* or chore/*, OR when the PR touches only
+          # documentation/config (no source or test files).
+          case "$HEAD_REF" in
+            docs/*|chore/*) echo "Branch '$HEAD_REF' is docs/chore — acceptance gate not required."; exit 0 ;;
+          esac
+          CHANGED="$(git diff --name-only "origin/$BASE_REF...HEAD" 2>/dev/null || true)"
+          if [ -n "$CHANGED" ]; then
+            # Anything that isn't markdown / a few known config/text types counts as code.
+            CODE="$(printf '%s\n' "$CHANGED" | grep -vE '\.(md|markdown|txt)$|^(LICENSE|NOTICE|CODEOWNERS)$|(^|/)\.gitignore$' || true)"
+            if [ -z "$CODE" ]; then
+              echo "PR changes only docs/config — acceptance gate not required."
+              printf '%s\n' "$CHANGED" | sed 's/^/  (doc) /'
+              exit 0
+            fi
+          fi
+
           # Derive the task id from the PR body, title, or branch name.
           TASK_ID="$(printf '%s\n%s\n%s' "$PR_BODY" "$PR_TITLE" "$HEAD_REF" \
                      | grep -oE '[A-Z]{2,4}-[0-9]+' | head -1 || true)"
@@ -89,13 +109,6 @@ jobs:
             exit 1
           fi
           echo "Task: $TASK_ID"
-
-          # Prefer the framework's own gate (acceptance existence check), if present.
-          if [ -x .claude/scripts/quality-gate.sh ]; then
-            # The gate also runs lint/typecheck/test; here we only need the acceptance
-            # existence check, so grep directly to keep this job fast and focused.
-            :
-          fi
 
           # A test file must reference the task id.
           MATCHES="$(grep -rIl --binary-files=without-match \

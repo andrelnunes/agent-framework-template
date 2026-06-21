@@ -97,8 +97,8 @@ enforcement (hooks/CI/skills) for Claude Code; a markdown mirror for everyone el
 
 Hooks stop a *local* bad commit; branch protection is what enforces it on the remote. Under
 **Settings → Branches**: protect `main` (PR-only, from `develop`, required checks
-`branch-name`/`pr-description-check`/`validate`, no force-push) and `develop` (PR-only, same
-checks). Details in the kit README.
+`branch-name`/`pr-description-check`/`acceptance-tests`/`validate`, no force-push) and
+`develop` (PR-only, same checks). Details in the kit README.
 
 ---
 

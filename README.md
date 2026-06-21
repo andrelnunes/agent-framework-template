@@ -122,7 +122,7 @@ remote. Under **Settings → Branches → Add rule** (or Rulesets):
 
 **`main`**
 - Require a pull request before merging · require approvals (≥1) · require Code Owner review
-- Require status checks: `branch-name`, `pr-description-check`, `validate`
+- Require status checks: `branch-name`, `pr-description-check`, `acceptance-tests`, `validate`
 - No force-push, no deletion · (optional) only allow PRs into `main` from `develop`
 
 **`develop`**
@@ -213,6 +213,10 @@ How it works end to end:
    each criterion to its test.
 6. **Review verifies coverage.** `spec-reviewer` only approves when every criterion maps to a
    passing, task-tagged test — code that "looks right" but has no test is *not met*.
+
+> **Docs/chore exemption.** Acceptance tests gate *behavioral* change. The CI
+> `acceptance-tests` job is skipped for `docs/*` and `chore/*` branches and for PRs that touch
+> only documentation/config (no source or test files) — so a README tweak doesn't demand a test.
 
 **Stack-agnostic.** The gate greps your test files for the task id. If your tests live outside
 the defaults, set `ACCEPTANCE_DIRS` / `ACCEPTANCE_GLOBS` (documented at the top of
