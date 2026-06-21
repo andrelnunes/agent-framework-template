@@ -1,0 +1,198 @@
+name: PR Validation
+
+# Runs on every PR into develop (and into main, for the develop→main promotion PR).
+on:
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  branch-name:
+    name: Branch name & target
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce feat/* → develop convention
+        run: |
+          HEAD="${{ github.head_ref }}"
+          BASE="${{ github.base_ref }}"
+          echo "head=$HEAD base=$BASE"
+          # main only accepts PRs from develop
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "develop" ]; then
+            echo "::error::main only accepts PRs from develop (got '$HEAD')."; exit 1
+          fi
+          # develop accepts feat/ fix/ chore/ branches
+          if [ "$BASE" = "develop" ] && ! echo "$HEAD" | grep -Eq '^(feat|fix|chore)/[a-z0-9._-]+$'; then
+            echo "::error::Branch '$HEAD' must match feat/<name>, fix/<name>, or chore/<name>."; exit 1
+          fi
+
+  pr-description-check:
+    name: PR description quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Required sections are present and filled
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const required = ["## Summary","## Linked PRD / Task","## Changes","## How to test","## Acceptance criteria","## Risks & rollback","## Checklist"];
+            const missing = required.filter(h => !body.includes(h));
+            if (missing.length) core.setFailed(`Missing required section(s): ${missing.join(", ")}`);
+
+            // A linked task id must be present (e.g. ABC-12).
+            const taskId = (body.match(/[A-Z]{2,4}-\d+/) || [])[0];
+            if (!taskId) core.setFailed("No backlog task id (e.g. WND-03) found in the PR body.");
+
+            // Docs/chore exemption: behavioral mapping is not required for doc/chore PRs.
+            const headRef = (context.payload.pull_request.head && context.payload.pull_request.head.ref) || "";
+            const isDocsChore = /^(docs|chore)\//.test(headRef);
+
+            // The acceptance-criteria section must map criteria to tests: it should reference
+            // a test file path or the task-id test tag. Enforces "every criterion has a test".
+            const acIdx = !isDocsChore ? body.indexOf("## Acceptance criteria") : -1;
+            if (acIdx !== -1) {
+              // Slice from this heading to the next "## " heading (or end of body).
+              const rest = body.slice(acIdx + 2);          // skip the leading "##"
+              const nextRel = rest.indexOf("\n## ");
+              const acSection = nextRel === -1 ? body.slice(acIdx) : body.slice(acIdx, acIdx + 2 + nextRel);
+              const mentionsTest = /\.(test|spec|feature)\b/.test(acSection)
+                || /tests?[\/\\]/.test(acSection)
+                || /::/.test(acSection)
+                || /→\s*`/.test(acSection)
+                || (taskId && new RegExp(`${taskId}:`).test(acSection));
+              if (!mentionsTest) core.setFailed("Acceptance criteria must map to tests — reference the acceptance test (file path or task-id tag, e.g. tests/x.test.js or 'WND-03: …') for each criterion.");
+            }
+
+            // Reject a body that still contains the template's instructional comments unfilled.
+            const stripped = body.replace(/<!--[\s\S]*?-->/g, "").replace(/^#.*$/gm, "");
+            const words = stripped.replace(/[-\[\]x\s]/g, "").length;
+            if (words < 40) core.setFailed("PR description looks empty — fill in the template sections.");
+
+  acceptance-tests:
+    name: Acceptance tests exist for the task
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to diff against the base branch
+      - name: A test must reference the task id
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Docs/chore exemption: acceptance tests gate BEHAVIORAL change, not doc edits.
+          # Skip when the branch is docs/* or chore/*, OR when the PR touches only
+          # documentation/config (no source or test files).
+          case "$HEAD_REF" in
+            docs/*|chore/*) echo "Branch '$HEAD_REF' is docs/chore — acceptance gate not required."; exit 0 ;;
+          esac
+          CHANGED="$(git diff --name-only "origin/$BASE_REF...HEAD" 2>/dev/null || true)"
+          if [ -n "$CHANGED" ]; then
+            # Anything that isn't markdown / a few known config/text types counts as code.
+            CODE="$(printf '%s\n' "$CHANGED" | grep -vE '\.(md|markdown|txt)$|^(LICENSE|NOTICE|CODEOWNERS)$|(^|/)\.gitignore$' || true)"
+            if [ -z "$CODE" ]; then
+              echo "PR changes only docs/config — acceptance gate not required."
+              printf '%s\n' "$CHANGED" | sed 's/^/  (doc) /'
+              exit 0
+            fi
+          fi
+
+          # Derive the task id from the PR body, title, or branch name.
+          TASK_ID="$(printf '%s\n%s\n%s' "$PR_BODY" "$PR_TITLE" "$HEAD_REF" \
+                     | grep -oE '[A-Z]{2,4}-[0-9]+' | head -1 || true)"
+          if [ -z "$TASK_ID" ]; then
+            echo "::error::No task id (e.g. WND-03) found in PR body/title/branch — cannot verify acceptance tests."
+            exit 1
+          fi
+          echo "Task: $TASK_ID"
+
+          # A test file must reference the task id.
+          MATCHES="$(grep -rIl --binary-files=without-match \
+                      --include='*.test.*' --include='*.spec.*' \
+                      --include='*_test.*'  --include='test_*.*' \
+                      --include='*Test.*'   --include='*.feature' \
+                      -- "$TASK_ID" . 2>/dev/null \
+                    | grep -v '/node_modules/' || true)"
+          if [ -z "$MATCHES" ]; then
+            echo "::error::No acceptance test references '$TASK_ID'. A task is not done until its spec-derived acceptance tests exist (tag them with the task id)."
+            exit 1
+          fi
+          echo "Acceptance tests for $TASK_ID:"
+          echo "$MATCHES" | sed 's/^/  /'
+
+  validate:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect package manager & lockfile
+        id: pm
+        run: |
+          # node=false → no package.json, the whole JS validation is skipped.
+          if [ ! -f package.json ]; then
+            echo "node=false" >>$GITHUB_OUTPUT
+            echo "no package.json — JS validation skipped"
+            exit 0
+          fi
+          echo "node=true" >>$GITHUB_OUTPUT
+          if   [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
+          elif [ -f yarn.lock ];      then echo "pm=yarn" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
+          elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then echo "pm=npm" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
+          else echo "pm=npm" >>$GITHUB_OUTPUT; echo "lock=false" >>$GITHUB_OUTPUT; fi
+
+      - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.pm == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with: { version: 9 }
+
+      # Enable dependency caching only when a lockfile exists (setup-node requires one).
+      - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.lock == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+      - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.lock == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        if: steps.pm.outputs.node == 'true'
+        run: |
+          if [ "${{ steps.pm.outputs.lock }}" = "true" ]; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm install --frozen-lockfile ;;
+              yarn) yarn install --frozen-lockfile ;;
+              npm)  npm ci ;;
+            esac
+          else
+            echo "no lockfile — running a non-frozen install"
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm install ;;
+              yarn) yarn install ;;
+              npm)  npm install --no-audit --no-fund ;;
+            esac
+          fi
+
+      # Each step runs only if there's a package.json AND the corresponding script exists,
+      # so the workflow is drop-in regardless of stack or which scripts a repo defines.
+      - name: Lint
+        if: steps.pm.outputs.node == 'true'
+        run: node -e "process.exit(require('./package.json').scripts?.lint?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run lint' || format('{0} lint', steps.pm.outputs.pm) }} || echo "no lint script — skipped"
+      - name: Typecheck
+        if: steps.pm.outputs.node == 'true'
+        run: node -e "process.exit(require('./package.json').scripts?.typecheck?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run typecheck' || format('{0} typecheck', steps.pm.outputs.pm) }} || echo "no typecheck script — skipped"
+      - name: Test
+        if: steps.pm.outputs.node == 'true'
+        run: node -e "process.exit(require('./package.json').scripts?.test?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm test' || format('{0} test', steps.pm.outputs.pm) }} || echo "no test script — skipped"
+      - name: Build
+        if: steps.pm.outputs.node == 'true'
+        run: node -e "process.exit(require('./package.json').scripts?.build?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run build' || format('{0} build', steps.pm.outputs.pm) }} || echo "no build script — skipped"
