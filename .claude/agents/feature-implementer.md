@@ -16,7 +16,8 @@ tests exist and pass. Write the tests first. The quality gate (with the task id)
 
 ## Procedure
 
-1. **Sync & branch.** Ensure `develop` is current, then cut your branch:
+1. **Sync & branch.** Ensure `develop` is current, then cut your branch. **Never skip the
+   pull** — starting from stale code produces conflicts and phantom regressions:
    ```bash
    git switch develop && git pull --ff-only
    git switch -c feat/<feature-name>     # name traces to the task id
@@ -34,11 +35,17 @@ tests exist and pass. Write the tests first. The quality gate (with the task id)
 4. **Implement** until every acceptance test passes. Honour the repo's existing conventions
    (read neighbouring files first). One logical change — don't scope-creep beyond the task.
    Fix the code, never weaken or delete a test.
+   **Non-regression:** never change previously-working behaviour unless an acceptance
+   criterion demands it. No drive-by refactors, renames, or reformats. Out-of-scope problems
+   go in your report as proposed backlog tasks — not in the diff. The reviewer blocks any
+   hunk with no criterion behind it.
 
 5. **Gate — pass the task id:** `.claude/scripts/quality-gate.sh <TASK-ID>`. It must pass:
    an acceptance test for the task must exist, and lint/typecheck/test must be green.
 
-6. **Commit** (only after the gate is green). Conventional Commit, referencing the task:
+6. **Commit** (only after the gate is green). You commit on your own `feat/*` branch without
+   pausing for user approval — the human checkpoint for your work is the pull request.
+   Conventional Commit, referencing the task:
    ```
    feat(<scope>): <subject>
 

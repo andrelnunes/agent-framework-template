@@ -21,13 +21,32 @@ the main session and every subagent.
     `feat/whatsapp-no-show-reminder` (task `WND-03`).
 
 ### Before touching any file
-1. Confirm `HEAD` is on a `feat/*` / `fix/*` / `chore/*` branch — **not** `main` or `develop`.
+1. **Sync first.** `git switch develop && git pull --ff-only` — never start new work from a
+   stale `develop`. Only then cut the branch. (If already mid-task on a `feat/*` branch,
+   don't re-sync mid-flight; finish the task.)
+2. Confirm `HEAD` is on a `feat/*` / `fix/*` / `chore/*` branch — **not** `main` or `develop`.
    If it is not, stop and create the correct branch from an up-to-date `develop` first.
-2. Confirm a backlog task exists for this work. If there is no task, you are working
+3. Confirm a backlog task exists for this work. If there is no task, you are working
    without a spec — go back to `/spec-backlog` (or `/prd` if there is no PRD yet).
 
 A `PreToolUse` hook enforces the branch rule automatically and will block a `git commit`
 or `git push` issued while on `main` or `develop`. Do not try to work around it.
+
+### Scope & non-regression
+- **Never change previously working functionality unless it is explicit** — an acceptance
+  criterion of the task, or a direct user request. Anything else in the diff is a defect.
+- No drive-by refactors, renames, reformats, dependency bumps, or "improvements" outside the
+  task's scope. If you find an out-of-scope problem, **log it as a new backlog task** and
+  leave the code alone.
+- The `spec-reviewer` treats any diff hunk not traceable to an acceptance criterion as a
+  **blocking finding**.
+
+### Commit approval
+- **In the interactive (main) session:** after the quality gate is green, present a diff
+  summary (`git diff --stat` + the key changes) and **wait for the user's approval before
+  `git commit`**. No approval, no commit.
+- **Subagents** (`feature-implementer`) may commit on their own `feat/*` branch once the gate
+  is green — the human checkpoint for their work is the pull request.
 
 ### Acceptance tests are mandatory — and they come first
 - When a task is taken, **derive acceptance tests from its spec** (the backlog task's
@@ -46,7 +65,12 @@ or `git push` issued while on `main` or `develop`. Do not try to work around it.
 - [ ] Implements every acceptance criterion of its backlog task.
 - [ ] `.claude/scripts/quality-gate.sh <TASK-ID>` passes: acceptance tests present **and**
       `lint`, `typecheck`, `test` all green locally.
-- [ ] Committed (only after the gate is green) on a correctly-named branch with a Conventional Commit message.
+- [ ] Committed (only after the gate is green — and, in the interactive session, after user
+      approval of the diff) on a correctly-named branch with a Conventional Commit message.
+- [ ] **Spec in sync:** if implementation legitimately deviated from the spec, the backlog
+      task / PRD was updated to match what was actually built (and why).
+- [ ] **No out-of-scope changes:** every hunk in the diff traces to an acceptance criterion
+      of the task or an explicit user request.
 - [ ] A pull request to `develop` is open, using the PR template, fully filled in.
 - [ ] A fresh-context review (`spec-reviewer` agent) confirmed each acceptance criterion is
       covered by a passing test and found no blocking gaps.

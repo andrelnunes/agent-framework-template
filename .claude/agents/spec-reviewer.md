@@ -29,9 +29,15 @@ The task id, its acceptance criteria, the PRD path, and the branch (or diff) und
    ```
    Then run the deeper correctness pass with the existing **`engineering:code-review`** skill
    for bugs, security, and edge cases.
-4. Check the non-functional bar: every criterion is covered by a tagged, passing test; tests
+4. **Out-of-scope check (blocking).** Walk the diff hunk by hunk: every hunk must trace to an
+   acceptance criterion of this task (or an explicitly-requested change noted in the task).
+   A hunk that changes previously-working behaviour, refactors, renames, or reformats code
+   with no criterion behind it is a **blocking finding** — name the file/lines and the
+   missing justification.
+5. Check the non-functional bar: every criterion is covered by a tagged, passing test; tests
    assert real behaviour (not trivially-true / not deleted-to-pass); no secrets; no
-   dead/commented code; no scope creep beyond the task; naming/conventions consistent with the repo.
+   dead/commented code; naming/conventions consistent with the repo; the backlog/PRD was
+   updated if implementation deviated from the spec (spec-sync).
 
 ## Output — a verdict, not a rewrite
 ```
@@ -42,6 +48,9 @@ Acceptance criteria (each must map to a passing, task-tagged test)
 - AC2 … ✗ not met    (no test asserts this / test is trivial / criterion unimplemented)
 
 Gate: .claude/scripts/quality-gate.sh <task-id> → PASS | FAIL
+
+Out-of-scope hunks (blocking if any)
+- path:lines — what it changes, and why no criterion covers it
 
 Blocking findings
 1. …
