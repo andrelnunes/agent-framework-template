@@ -20,7 +20,8 @@ tests exist and pass. Write the tests before the implementation. The quality gat
 ## Procedure
 1. **Mark in-progress.** Set the task's Status to `in-progress` in the backlog file.
 
-2. **Branch from develop.**
+2. **Sync, then branch from develop.** Never skip the pull — starting from a stale
+   `develop` is how merge conflicts and phantom regressions are born.
    ```bash
    git switch develop && git pull --ff-only
    git switch -c <branch-from-the-task>      # the Branch: field of the task
@@ -40,6 +41,9 @@ tests exist and pass. Write the tests before the implementation. The quality gat
 
 4. **Plan briefly**, then **implement** strictly within the task scope until every acceptance
    test goes green. Read neighbouring files to match conventions. Fix the code, never the test.
+   **Scope guardrail:** touch only what the task requires — no refactors, renames, or
+   "improvements" to working code unless an acceptance criterion demands it. If you discover
+   an out-of-scope problem, add it to the backlog as a new task and leave the code alone.
 
 5. **Quality gate — pass the task id** so the acceptance check runs:
    ```bash
@@ -47,16 +51,27 @@ tests exist and pass. Write the tests before the implementation. The quality gat
    ```
    It fails if no test references `$ARGUMENTS` or if any check is red. Must pass before you commit.
 
-6. **Commit** (only after the gate is green; Conventional Commit, referencing the id):
+6. **Get commit approval** *(interactive session only — subagents skip this step)*. Present
+   the diff for review and **wait for the user's go-ahead before committing**:
+   ```bash
+   git diff --stat
+   ```
+   Summarize the key changes (what changed and why, per file group). No approval, no commit.
+
+7. **Commit** (only after the gate is green and — in the interactive session — the user
+   approved; Conventional Commit, referencing the id):
    ```bash
    git add -A
    git commit -m "feat(<scope>): <subject>" -m "<what & why>" -m "Refs: $ARGUMENTS"
    ```
 
-7. **Update status** to `in-review` and check off the acceptance criteria you've met in the
-   backlog file (each should now map to a passing, tagged test).
+8. **Update status & sync the spec.** Set Status to `in-review` and check off the acceptance
+   criteria you've met in the backlog file (each should now map to a passing, tagged test).
+   If the implementation legitimately deviated from the spec (criterion reworded, behaviour
+   adjusted, edge case discovered), **update the backlog task / PRD now** so the spec matches
+   what was built — note what changed and why.
 
-8. **Hand off to `/ship-pr`** to push and open the pull request. Do not push to a protected
+9. **Hand off to `/ship-pr`** to push and open the pull request. Do not push to a protected
    branch; the guard will block it anyway.
 
 ## Parallelizing

@@ -38,6 +38,10 @@ Open a pull request that a reviewer can approve with confidence. Target is **alw
    Acceptance criteria, Risks/Rollback, Checklist. **Map each acceptance criterion to the
    acceptance test that proves it** (file + test name). An empty or templated-but-unfilled
    section will fail the CI `pr-description-check`.
+   Before composing, verify two DoD items and state them in the body: **no out-of-scope
+   changes** (every hunk traces to a criterion or explicit request) and **spec in sync**
+   (backlog/PRD updated if implementation deviated). If either fails, go back to
+   `/task-execute` first.
 
 5. **Open the PR to `develop`:**
    ```bash
