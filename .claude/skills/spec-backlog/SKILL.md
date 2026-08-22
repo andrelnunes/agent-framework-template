@@ -22,6 +22,9 @@ names a PRD path or feature, use it; otherwise ask which PRD to decompose.
    - **Vertically sliced** where possible (a thin end-to-end capability beats a horizontal layer).
    - **Testable** — every acceptance criterion must be expressible as an automated acceptance
      test. If a criterion can't be tested, rewrite it until it can (or flag it explicitly).
+   - **Behaviour-stated** — criteria describe **external behaviour** (inputs → outputs,
+     pre/postconditions, invariants), not implementation details. "Uses a queue" is not a
+     criterion; "a reminder is delivered within 60s of the trigger" is.
 3. Assign a **stable id**: a 2–4 letter feature prefix + number, e.g. `WND-01`, `WND-02`.
    Ids never change once written — they thread through branch names, commits, and PRs.
 4. Map **dependencies** between tasks and flag which can run **in parallel** vs. must be
@@ -53,6 +56,8 @@ Generated: {YYYY-MM-DD}
 - **Acceptance tests:**            <!-- one per criterion; written FIRST during /task-execute -->
   - [ ] `WND-01: {criterion}` — {test type: unit | integration | e2e} — {what it asserts}
   - [ ] `WND-01: {…}`
+- **Contracts:** {required when the task exposes an API/event/integration — I/O shapes,
+  pre/postconditions, invariants; write "n/a" otherwise}
 - **Touches:** {files/modules, best estimate — used to detect conflicts}
 - **Test notes:** {fixtures/mocks/data needed; how to run just these tests}
 
