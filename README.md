@@ -57,6 +57,8 @@ your-repo/
 │   │   ├── feature-implementer.md    # executes one task on its own feat/* branch (parallelizable)
 │   │   └── spec-reviewer.md          # fresh-context review vs. acceptance criteria
 │   └── skills/
+│       ├── product-spec/             # product idea → feature map        (/product-spec)
+│       ├── product-requirements/     # feature idea → PRD                (/product-requirements)
 │       ├── spec-backlog/             # PRD → executable backlog          (/spec-backlog)
 │       ├── task-execute/             # task → branch + implement + gate  (/task-execute)
 │       ├── ship-pr/                  # commit → PR to develop (template) (/ship-pr)
@@ -66,6 +68,7 @@ your-repo/
 │   ├── CODEOWNERS                    # review required on .claude/ & .github/
 │   └── workflows/pr-validation.yml   # CI: branch name + PR desc + lint/types/test/build
 ├── docs/
+│   ├── product/{product}-prd.md      # product PRD + feature-map.md (optional, product scale)
 │   ├── {feature}-prd.md              # PRDs land here
 │   └── backlog/{feature}.md          # backlog files land here (the source of truth)
 └── AGENTS.md, .cursorrules           # (optional) Cursor / Codex / Copilot compat layer
@@ -143,10 +146,36 @@ That closes the loop: agents work only on `feat/*`, every change reaches `develo
 Or step through it:
 
 ```text
-product-requirements             # → docs/{feature}-prd.md   (PRD skill)
+/product-spec  "<product idea>"  # → docs/product/{product}-prd.md + feature-map.md   (product scale only)
+/product-requirements <feature>  # → docs/{feature}-prd.md   (PRD skill)
 /spec-backlog  <feature>         # → docs/backlog/{feature}.md  (tasks w/ ids, AC, acceptance-test plan, deps)
 /task-execute  WND-03            # branch → write acceptance tests (from spec) → implement → gate → commit
 /ship-pr       WND-03            # push + open PR to develop (template filled, task linked, tests mapped)
+```
+
+`/product-spec` runs **once per product**, not per feature — it decides what the features
+are, what ships first, and each feature's task-id prefix. Adding one feature to an existing
+codebase? Start at `/product-requirements`.
+
+```text
+  /product-spec ────────────► docs/product/{product}-prd.md
+   (once per product)         docs/product/feature-map.md
+                                        │  one row per feature: prefix, release slice
+                                        ▼
+  /product-requirements ────► docs/{feature}-prd.md
+   (once per feature)          problem · goal · stories · requirements · MVP · risks
+                                        │
+                                        ▼
+  /spec-backlog ────────────► docs/backlog/{feature}.md
+                               ABC-01, ABC-02 … acceptance criteria + acceptance-test plan
+                                        │
+                                        ▼
+  /task-execute ABC-01 ─────► feat/… branch
+                               ① tests FIRST (red)  ② implement  ③ quality gate  ④ commit
+                                        │                            ▲
+                                        ▼                            └── refuses the commit
+  /ship-pr ABC-01 ──────────► PR → develop → merge                       if no test is tagged
+                               ↺ next feature slice                       ABC-01, or CI is red
 ```
 
 `/task-execute` is **test-first**: it derives an acceptance test from each acceptance
@@ -173,7 +202,8 @@ spawns one `feature-implementer` subagent per task in the parallel set.
 
 | Step | Command / Skill | Input → Output |
 |------|-----------------|----------------|
-| 1. Define the spec | `product-requirements` | idea → `docs/{feature}-prd.md` |
+| 0. Spec the product *(once)* | `/product-spec` | product idea → `docs/product/{product}-prd.md` + `feature-map.md` (features, id prefixes, release slices) |
+| 1. Define the spec | `/product-requirements` | feature idea → `docs/{feature}-prd.md` |
 | 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks, AC, **acceptance-test plan**, deps) |
 | 3. Execute a task | `/task-execute <id>` | task → branch + **acceptance tests (from spec, first)** + implementation + green gate + commit |
 | 4. Ship it | `/ship-pr <id>` | commit + PR to `develop` (template, linked task, criteria→tests) |

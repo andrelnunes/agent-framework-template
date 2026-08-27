@@ -1,6 +1,6 @@
 ---
 name: spec-flow
-description: Orchestrate the full spec-driven loop from a raw idea to merged-ready PRs — PRD, backlog, parallel execution, and pull requests with quality gates. Triggers on "/spec-flow", "run the spec-driven flow", "take this from idea to PRs". Coordinates the existing product-requirements skill and the spec-backlog / task-execute / ship-pr skills plus the implementer and reviewer agents.
+description: Orchestrate the full spec-driven loop from a raw idea to merged-ready PRs — product spec, PRD, backlog, parallel execution, and pull requests with quality gates. Triggers on "/spec-flow", "run the spec-driven flow", "take this from idea to PRs". Coordinates the product-spec / product-requirements / spec-backlog / task-execute / ship-pr skills plus the implementer and reviewer agents.
 argument-hint: [feature idea or PRD path]
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
@@ -12,8 +12,16 @@ the right skill or agent, confirm at the gates, and keep the backlog file as the
 
 ## The chain
 
-**1 · Spec.** If no PRD exists for this idea, run the **`product-requirements`** skill to
-produce `docs/{feature}-prd.md`.
+**0 · Product (only when the ask is product-scale).** If the request is a whole product
+rather than one feature — and `docs/product/` holds no product PRD — run **`/product-spec`**
+first. It produces `docs/product/{product}-prd.md` and `docs/product/feature-map.md`, which
+decides *what the features are*, assigns each a unique task-id prefix, and orders them into
+release slices. Then run steps 1–5 per feature, walking skeleton first. For a single feature
+in an existing product, skip to step 1.
+
+**1 · Spec.** If no PRD exists for this idea, run the **`/product-requirements`** skill to
+produce `docs/{feature}-prd.md`. If the feature has a row in `docs/product/feature-map.md`,
+pass it along — the row carries the id prefix and release slice this PRD must respect.
 
 **1.5 · Clarify.** Interrogate the spec before decomposing — don't just ask "is this right?".
 Challenge the PRD with up to **5 targeted questions** covering: ambiguities, unstated edge
@@ -39,6 +47,8 @@ blocking findings back to step 3.
 (template filled, task linked). CI `pr-validation.yml` runs the gates automatically.
 
 ## Gates where you pause for the user
+- The feature map (step 0, product-scale runs only) — right features, right release slices,
+  walking skeleton genuinely end-to-end? Everything downstream inherits this decision.
 - Clarify (step 1.5) — targeted questions answered and encoded into the PRD; spec confirmed.
 - Before each commit made in the interactive session — diff presented, user approved
   (subagents commit on their own branches; their checkpoint is the PR).
