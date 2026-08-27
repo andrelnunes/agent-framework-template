@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { promises as fs } from 'node:fs';
+import { promises as fs, writeFileSync as require$writeSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -194,4 +194,48 @@ test('AFT-300: no doc references a skill that is not installed', async () => {
   }
 
   assert.deepEqual(dangling, [], `docs reference skills that do not exist: ${dangling.join(', ')}`);
+});
+
+// --- AFT-302: CI must not pin a pnpm version against packageManager ---------
+// A literal `version:` here plus a `packageManager` field in the target repo makes
+// pnpm/action-setup fail before installing anything, killing the whole validate job.
+
+test('AFT-302: the workflow lets packageManager decide the pnpm version', async () => {
+  const wf = await fs.readFile(path.join(ROOT, '.github/workflows/pr-validation.yml'), 'utf8');
+
+  // Anchor on the `uses:` line, not any mention — the surrounding comment names it too.
+  const setupIdx = wf.indexOf('uses: pnpm/action-setup');
+  assert.ok(setupIdx !== -1, 'the pnpm setup step must still exist');
+  const step = wf.slice(setupIdx, setupIdx + 240);
+
+  assert.ok(!/version:\s*['"]?\d/.test(step),
+    'pnpm version must not be hardcoded — it conflicts with packageManager');
+  assert.match(step, /version:\s*\$\{\{\s*steps\.pm\.outputs\.pnpm_version\s*\}\}/,
+    'the pnpm version must come from the pm step output');
+  assert.match(wf, /echo "pnpm_version=" *>>/,
+    'the pm step must emit an empty pnpm_version when packageManager is present');
+  assert.match(wf, /echo "pnpm_version=9" *>>/,
+    'the pm step must keep a pinned fallback for repos with no packageManager');
+});
+
+test('AFT-302: the version predicate branches on the packageManager field', async (t) => {
+  // The workflow decides with `node -e "process.exit(require('./package.json').packageManager?0:1)"`.
+  // Run that exact predicate against both shapes of package.json.
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const predicate = "process.exit(require('./package.json').packageManager?0:1)";
+  const exitCode = (pkg) => {
+    require$writeSync(path.join(dir, 'package.json'), JSON.stringify(pkg));
+    try {
+      execFileSync('node', ['-e', predicate], { cwd: dir, stdio: 'ignore' });
+      return 0;
+    } catch (e) {
+      return e.status;
+    }
+  };
+
+  assert.equal(exitCode({ packageManager: 'pnpm@10.28.2' }), 0,
+    'packageManager present → exit 0 → empty version, deferring to the field');
+  assert.equal(exitCode({ name: 'x' }), 1,
+    'packageManager absent → exit 1 → pinned fallback');
 });
