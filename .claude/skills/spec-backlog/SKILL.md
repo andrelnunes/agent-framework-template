@@ -27,6 +27,9 @@ names a PRD path or feature, use it; otherwise ask which PRD to decompose.
      criterion; "a reminder is delivered within 60s of the trigger" is.
 3. Assign a **stable id**: a 2–4 letter feature prefix + number, e.g. `WND-01`, `WND-02`.
    Ids never change once written — they thread through branch names, commits, and PRs.
+   **If `docs/product/feature-map.md` exists, take the prefix from this feature's row** —
+   it is assigned there precisely so two features can't mint the same id. Otherwise choose
+   one and check it against every existing `docs/backlog/*.md` before using it.
 4. Map **dependencies** between tasks and flag which can run **in parallel** vs. must be
    **sequential** (tasks editing the same files = sequential).
 5. Derive a **branch name** per task: `feat/<feature>-<short-slug>`.

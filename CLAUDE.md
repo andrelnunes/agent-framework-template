@@ -27,7 +27,8 @@ the main session and every subagent.
 2. Confirm `HEAD` is on a `feat/*` / `fix/*` / `chore/*` branch — **not** `main` or `develop`.
    If it is not, stop and create the correct branch from an up-to-date `develop` first.
 3. Confirm a backlog task exists for this work. If there is no task, you are working
-   without a spec — go back to `/spec-backlog` (or `/prd` if there is no PRD yet).
+   without a spec — go back to `/spec-backlog` (or `/product-requirements` if there is no
+   PRD yet, or `/product-spec` if the product itself was never mapped).
 
 A `PreToolUse` hook enforces the branch rule automatically and will block a `git commit`
 or `git push` issued while on `main` or `develop`. Do not try to work around it.
@@ -83,11 +84,15 @@ Run the chain end-to-end with `/spec-flow`, or step through it manually:
 
 | Step | Command / Skill | Input → Output |
 |------|-----------------|----------------|
-| 1. Define the spec | `product-requirements` *(existing skill)* | idea → `docs/{feature}-prd.md` |
+| 0. Spec the product *(product-scale only)* | `/product-spec` | product idea → `docs/product/{product}-prd.md` + `docs/product/feature-map.md` (features, id prefixes, release slices) |
+| 1. Define the spec | `/product-requirements` | feature idea → `docs/{feature}-prd.md` |
 | 2. Decompose to backlog | `/spec-backlog` | PRD → `docs/backlog/{feature}.md` (tasks w/ ids, AC, **acceptance-test plan**, deps) |
 | 3. Execute a task | `/task-execute <task-id>` | task → branch + **acceptance tests (from spec, written first)** + implementation + green gate + commit |
 | 4. Ship it | `/ship-pr` | commit + PR to `develop` (template, linked task, test status) |
 | 5. Review | `spec-reviewer` *(agent)* + `engineering:code-review` *(existing skill)* | diff → criterion-by-criterion test coverage + findings |
+
+Step 0 runs once per product, not per feature. It exists so the feature list, their order,
+and their task-id prefixes are decided deliberately instead of emerging one PRD at a time.
 
 **Step 3 is test-first.** Inside `/task-execute`: read the task's acceptance criteria →
 write a failing acceptance test for each (tagged with the task id) → implement until they
