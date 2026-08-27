@@ -239,3 +239,40 @@ test('AFT-302: the version predicate branches on the packageManager field', asyn
   assert.equal(exitCode({ name: 'x' }), 1,
     'packageManager absent → exit 1 → pinned fallback');
 });
+
+// --- AFT-303: the task id must come from the PR's "Task:" line --------------
+// Taking the first id-shaped token anywhere in the body lets a cited user story hijack the
+// match. That rejected a correct PR, and — worse — passed one whose test file happened to
+// mention the hijacked id, so the gate reported coverage it had never verified.
+
+test('AFT-303: the task id is taken from the Task: line, not the first id in the body', () => {
+  const script = path.join(ROOT, '.claude/scripts/task-id.sh');
+  const derive = (body, title = '', branch = '') =>
+    execFileSync('bash', [script, body, title, branch], { encoding: 'utf8' }).trim();
+
+  // A user story cited before the Task: line must not win.
+  assert.equal(
+    derive('## Summary\nA fila priorizada (US-01) faz X.\n\n## Linked PRD / Task\n- Task: UX-03 — docs/backlog/x.md',
+           'feat(queue): add screen', 'feat/ux-03'),
+    'UX-03');
+
+  // Bold markdown around the label, as the template writes it.
+  assert.equal(derive('- **Task:** WND-07\n', '', 'feat/whatever'), 'WND-07');
+
+  // No Task: line → fall back to a Refs: trailer.
+  assert.equal(derive('Some text ABC-99 here.\n\nRefs: XYZ-12', '', ''), 'XYZ-12');
+
+  // Neither → the branch name, uppercased.
+  assert.equal(derive('no ids here at all', 'nor here', 'feat/ux-08'), 'UX-08');
+
+  // Nothing anywhere → empty, so the caller can fail loudly.
+  assert.equal(derive('nothing', '', 'feat/no-id-branch'), '');
+});
+
+test('AFT-303: CI derives the task id through the shared script', async () => {
+  const wf = await fs.readFile(path.join(ROOT, '.github/workflows/pr-validation.yml'), 'utf8');
+  assert.match(wf, /task-id\.sh/,
+    'the acceptance job must derive the id via the shared script');
+  assert.ok(!/TASK_ID="\$\(printf .*grep -oE '\[A-Z\]\{2,4\}/.test(wf),
+    'the old first-match-anywhere derivation must be gone');
+});
