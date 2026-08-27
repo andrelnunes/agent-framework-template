@@ -24,10 +24,13 @@ Generated: 2026-08-27
   - [x] npm and yarn repos are unaffected
   - [x] The workflow YAML still parses
 - **Acceptance tests:**
-  - [x] Verified end to end on the consuming repo's PR — the job progressed past setup and ran
-        lint, typecheck and tests. This is a CI-configuration change; the meaningful assertion
-        is a green run, not a unit test. The branch logic (`packageManager` present vs. absent)
-        was checked directly against both shapes of `package.json`.
+  - [x] `AFT-302: the workflow lets packageManager decide the pnpm version` — unit — parses
+        the workflow and fails if a literal version is ever re-pinned on the setup step, or if
+        either branch of the pm step's output disappears
+  - [x] `AFT-302: the version predicate branches on the packageManager field` — unit — runs the
+        exact `node -e` predicate the workflow uses against both shapes of `package.json`
+  - Note: the first PR for this task claimed a CI-config change "cannot be unit tested" and was
+        correctly rejected by the acceptance gate. It can be tested; the claim was wrong.
 - **Contracts:** the `pm` detection step gains a `pnpm_version` output, empty when
   `packageManager` is present.
 - **Touches:** .github/workflows/pr-validation.yml
