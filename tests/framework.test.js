@@ -109,3 +109,61 @@ test('AFT-200: quality gate PASSES once a tagged acceptance test exists and the 
   const out = execFileSync('bash', [GATE, 'ZZZ-99'], { cwd: dir, encoding: 'utf8' });
   assert.match(out, /Quality gate passed/, 'gate must pass with a tagged test and green suite');
 });
+
+// --- AFT-300: the spec chain has no dangling rungs ---------------------------
+// Regression guard for the bug these tests were extended to cover: CLAUDE.md,
+// the README and spec-flow all referenced a `product-requirements` skill that
+// was never shipped, so /spec-flow died at step 1 in every installed repo.
+
+const KIT_SKILLS = [
+  'product-spec',
+  'product-requirements',
+  'spec-backlog',
+  'task-execute',
+  'ship-pr',
+  'spec-flow',
+];
+
+test('AFT-300: installer ships every kit skill, with frontmatter matching its directory', async (t) => {
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  execFileSync('node', [INIT, dir, '--yes', '--no-git'], { stdio: 'ignore' });
+
+  for (const skill of KIT_SKILLS) {
+    const file = path.join(dir, '.claude', 'skills', skill, 'SKILL.md');
+    assert.ok(existsSync(file), `expected the ${skill} skill to be installed`);
+
+    // The frontmatter name is how Claude Code resolves /<skill>; a mismatch
+    // makes the slash command silently unavailable.
+    const name = (await fs.readFile(file, 'utf8')).match(/^name:\s*(\S+)/m)?.[1];
+    assert.equal(name, skill, `${skill}/SKILL.md frontmatter name must equal its directory`);
+  }
+});
+
+test('AFT-300: no doc references a skill that is not installed', async () => {
+  // Skills owned by other tools/plugins — referenced deliberately, not shipped here.
+  const EXTERNAL = new Set(['engineering:code-review']);
+
+  const docs = [
+    path.join(ROOT, 'CLAUDE.md'),
+    path.join(ROOT, 'README.md'),
+    path.join(ROOT, 'docs', 'README.md'),
+    ...KIT_SKILLS.map((s) => path.join(ROOT, '.claude', 'skills', s, 'SKILL.md')),
+  ];
+
+  const installed = new Set(KIT_SKILLS);
+  const dangling = [];
+
+  for (const doc of docs) {
+    const text = await fs.readFile(doc, 'utf8');
+    // Backticked slash-invocations, e.g. `/spec-backlog`.
+    for (const [, name] of text.matchAll(/`\/([a-z][a-z0-9-]*)`/g)) {
+      if (!installed.has(name) && !EXTERNAL.has(name)) {
+        dangling.push(`${path.relative(ROOT, doc)} → /${name}`);
+      }
+    }
+  }
+
+  assert.deepEqual(dangling, [], `docs reference skills that do not exist: ${dangling.join(', ')}`);
+});
