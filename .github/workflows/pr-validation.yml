@@ -149,9 +149,25 @@ jobs:
           elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then echo "pm=npm" >>$GITHUB_OUTPUT; echo "lock=true" >>$GITHUB_OUTPUT;
           else echo "pm=npm" >>$GITHUB_OUTPUT; echo "lock=false" >>$GITHUB_OUTPUT; fi
 
+          # Pin a pnpm version ONLY when package.json declares no packageManager field.
+          # Passing both is a hard error in pnpm/action-setup; passing an empty version
+          # makes it read packageManager, which is what a modern repo wants.
+          if node -e "process.exit(require('./package.json').packageManager?0:1)" 2>/dev/null; then
+            echo "pnpm_version=" >>$GITHUB_OUTPUT
+            echo "pnpm version comes from package.json packageManager"
+          else
+            echo "pnpm_version=9" >>$GITHUB_OUTPUT
+            echo "no packageManager field — pinning pnpm 9"
+          fi
+
+      # pnpm/action-setup errors out ("Multiple versions of pnpm specified") when a version
+      # is pinned here AND package.json carries a `packageManager` field — which every modern
+      # pnpm scaffold writes, and corepack requires. So let packageManager win when it exists,
+      # and only fall back to a pinned version when the repo doesn't declare one.
       - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.pm == 'pnpm'
         uses: pnpm/action-setup@v4
-        with: { version: 9 }
+        with:
+          version: ${{ steps.pm.outputs.pnpm_version }}
 
       # Enable dependency caching only when a lockfile exists (setup-node requires one).
       - if: steps.pm.outputs.node == 'true' && steps.pm.outputs.lock == 'true'
