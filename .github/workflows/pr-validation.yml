@@ -105,9 +105,11 @@ jobs:
             fi
           fi
 
-          # Derive the task id from the PR body, title, or branch name.
-          TASK_ID="$(printf '%s\n%s\n%s' "$PR_BODY" "$PR_TITLE" "$HEAD_REF" \
-                     | grep -oE '[A-Z]{2,4}-[0-9]+' | head -1 || true)"
+          # Derive the task id, preferring the PR template's "Task:" line. Taking the first
+          # id-shaped token anywhere in the body lets a cited user story (US-01) hijack the
+          # match — which both rejects correct PRs and, worse, passes wrong ones when a test
+          # happens to mention the hijacked id.
+          TASK_ID="$(bash .claude/scripts/task-id.sh "$PR_BODY" "$PR_TITLE" "$HEAD_REF" || true)"
           if [ -z "$TASK_ID" ]; then
             echo "::error::No task id (e.g. WND-03) found in PR body/title/branch — cannot verify acceptance tests."
             exit 1
