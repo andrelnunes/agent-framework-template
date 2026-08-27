@@ -276,3 +276,50 @@ test('AFT-303: CI derives the task id through the shared script', async () => {
   assert.ok(!/TASK_ID="\$\(printf .*grep -oE '\[A-Z\]\{2,4\}/.test(wf),
     'the old first-match-anywhere derivation must be gone');
 });
+
+// --- AFT-304: the validate job must be able to fail -------------------------
+// Each step ran `node -e <script exists?> && <pm> <script> || echo "no X script — skipped"`.
+// The `||` caught a FAILING script exactly as it caught a MISSING one: the step printed
+// "skipped" and exited 0. Lint, typecheck, test and build could never fail a PR — a broken
+// build sat on the integration branch while every PR reported the job green.
+
+test('AFT-304: no validate step swallows a script failure with ||', async () => {
+  const wf = await fs.readFile(path.join(ROOT, '.github/workflows/pr-validation.yml'), 'utf8');
+
+  for (const script of ['lint', 'typecheck', 'test', 'build']) {
+    assert.ok(
+      !new RegExp(`\\|\\| echo "no ${script} script`).test(wf.replace(/\n\s+else\n\s+echo/g, '\nELSE_ECHO')),
+      `the ${script} step must not use \`|| echo\` — it hides a real failure as "skipped"`);
+    assert.match(wf, new RegExp(`if node -e "process\\.exit\\(require\\('\\./package\\.json'\\)\\.scripts\\?\\.${script}\\?0:1\\)"; then`),
+      `the ${script} step must branch on the script's existence, not chain with &&`);
+  }
+});
+
+test('AFT-304: the shell pattern itself distinguishes missing from failing', async (t) => {
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  // A package whose `lint` script exists and FAILS.
+  await fs.writeFile(path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'x', scripts: { lint: 'exit 3' } }));
+
+  const runOld = () => {
+    try {
+      execFileSync('bash', ['-c',
+        'node -e "process.exit(require(\'./package.json\').scripts?.lint?0:1)" && npm run --silent lint || echo "no lint script — skipped"'],
+        { cwd: dir, stdio: 'pipe' });
+      return 0;
+    } catch (e) { return e.status; }
+  };
+  const runNew = () => {
+    try {
+      execFileSync('bash', ['-c',
+        'if node -e "process.exit(require(\'./package.json\').scripts?.lint?0:1)"; then npm run --silent lint; else echo "no lint script — skipped"; fi'],
+        { cwd: dir, stdio: 'pipe' });
+      return 0;
+    } catch (e) { return e.status; }
+  };
+
+  assert.equal(runOld(), 0, 'the old pattern swallowed the failure — this is the bug');
+  assert.notEqual(runNew(), 0, 'the new pattern must propagate a failing script');
+});
