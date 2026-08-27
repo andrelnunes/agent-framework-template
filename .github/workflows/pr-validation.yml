@@ -204,13 +204,33 @@ jobs:
       # so the workflow is drop-in regardless of stack or which scripts a repo defines.
       - name: Lint
         if: steps.pm.outputs.node == 'true'
-        run: node -e "process.exit(require('./package.json').scripts?.lint?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run lint' || format('{0} lint', steps.pm.outputs.pm) }} || echo "no lint script — skipped"
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.lint?0:1)"; then
+            ${{ steps.pm.outputs.pm == 'npm' && 'npm run lint' || format('{0} lint', steps.pm.outputs.pm) }}
+          else
+            echo "no lint script — skipped"
+          fi
       - name: Typecheck
         if: steps.pm.outputs.node == 'true'
-        run: node -e "process.exit(require('./package.json').scripts?.typecheck?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run typecheck' || format('{0} typecheck', steps.pm.outputs.pm) }} || echo "no typecheck script — skipped"
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.typecheck?0:1)"; then
+            ${{ steps.pm.outputs.pm == 'npm' && 'npm run typecheck' || format('{0} typecheck', steps.pm.outputs.pm) }}
+          else
+            echo "no typecheck script — skipped"
+          fi
       - name: Test
         if: steps.pm.outputs.node == 'true'
-        run: node -e "process.exit(require('./package.json').scripts?.test?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm test' || format('{0} test', steps.pm.outputs.pm) }} || echo "no test script — skipped"
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.test?0:1)"; then
+            ${{ steps.pm.outputs.pm == 'npm' && 'npm test' || format('{0} test', steps.pm.outputs.pm) }}
+          else
+            echo "no test script — skipped"
+          fi
       - name: Build
         if: steps.pm.outputs.node == 'true'
-        run: node -e "process.exit(require('./package.json').scripts?.build?0:1)" && ${{ steps.pm.outputs.pm == 'npm' && 'npm run build' || format('{0} build', steps.pm.outputs.pm) }} || echo "no build script — skipped"
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.build?0:1)"; then
+            ${{ steps.pm.outputs.pm == 'npm' && 'npm run build' || format('{0} build', steps.pm.outputs.pm) }}
+          else
+            echo "no build script — skipped"
+          fi
