@@ -61,24 +61,52 @@ test('AFT-200: installer never clobbers existing files and preserves test script
   assert.ok(pkg.scripts.lint && pkg.scripts.typecheck, 'missing gate scripts are added as placeholders');
 });
 
-test('AFT-200: branch guard denies commits on protected branches, allows feature branches', () => {
-  const run = (cmd) => {
+test('AFT-301: branch guard reads the branch of the repo the command targets', async (t) => {
+  // The guard must resolve the TARGET repo, not whichever repo the hook happens to run in.
+  // Driving it against a throwaway repo with a known HEAD is the only way to assert that;
+  // the previous version of this test read the real repo's HEAD, so it passed on a feature
+  // branch and failed on develop, and CI never noticed (PR checkouts are detached-HEAD).
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: 'ignore' });
+  git('init', '-q');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'Test');
+  await fs.writeFile(path.join(dir, 'f.txt'), 'x\n');
+  git('add', '-A');
+  git('commit', '-qm', 'init');
+  git('branch', '-M', 'develop');
+
+  const run = (cmd, cwd) => {
     try {
       return execFileSync('bash', [path.join(ROOT, '.claude/scripts/guard-branch.sh')], {
-        input: JSON.stringify({ tool_input: { command: cmd } }),
+        input: JSON.stringify({ cwd, tool_input: { command: cmd } }),
         encoding: 'utf8',
       });
     } catch (e) {
       return (e.stdout || '') + (e.stderr || '');
     }
   };
-  // We are on a feat/* branch in this repo, so a commit is allowed (no deny JSON).
-  const commitOut = run('git commit -m x');
-  assert.ok(!/permissionDecision":"deny"|Blocked/.test(commitOut),
+  const denied = (out) => /permissionDecision":"deny"|Blocked/.test(out);
+  const PUSH_TO_MAIN = ['git', 'push', 'origin', 'main'].join(' ');
+
+  // Target repo is on develop → denied, even though this repo is somewhere else entirely.
+  assert.ok(denied(run('git commit -m x', dir)),
+    'commit on develop in the target repo must be denied');
+  assert.ok(denied(run(`git -C ${dir} commit -m x`, ROOT)),
+    'git -C must resolve the target repo, not the hook cwd');
+  assert.ok(denied(run(`cd ${dir} && git commit -m x`, ROOT)),
+    'a cd prefix must resolve the target repo');
+
+  // Same repo on a feature branch → allowed.
+  git('switch', '-q', '-c', 'feat/thing');
+  assert.ok(!denied(run('git commit -m x', dir)),
     'commit on a feature branch must be allowed');
-  // A push directly to a protected branch must always be denied regardless of current branch.
-  const pushOut = run('git push origin main');
-  assert.match(pushOut, /deny|Blocked/, 'push to main must be denied');
+
+  // A push aimed at a protected branch is denied regardless of the current branch.
+  assert.ok(denied(run(PUSH_TO_MAIN, dir)),
+    'push to a protected branch must always be denied');
 });
 
 test('AFT-200: quality gate FAILS when no acceptance test references the task id', async (t) => {
