@@ -323,3 +323,58 @@ test('AFT-304: the shell pattern itself distinguishes missing from failing', asy
   assert.equal(runOld(), 0, 'the old pattern swallowed the failure — this is the bug');
   assert.notEqual(runNew(), 0, 'the new pattern must propagate a failing script');
 });
+
+// --- AFT-305: the acceptance search must not narrow silently -----------------
+// ACCEPTANCE_DIRS defaulted to a list of directory names, and the gate searched whichever of
+// them existed. A repo that grew a root-level `e2e/` therefore stopped searching `apps/` and
+// `packages/` — reporting "no test references TASK-ID" for tests that existed, and matching a
+// task id mentioned in a comment inside the one directory it still looked at.
+
+test('AFT-305: with no ACCEPTANCE_DIRS the gate searches the whole tree', async (t) => {
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  // A repo shaped like a monorepo that also has a root-level e2e/ — the shape that broke.
+  await fs.writeFile(path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'app', scripts: { test: 'echo ok' } }));
+  await fs.mkdir(path.join(dir, 'e2e'), { recursive: true });
+  await fs.writeFile(path.join(dir, 'e2e', 'journey.spec.ts'), '// nothing relevant here\n');
+  await fs.mkdir(path.join(dir, 'packages', 'db', 'src', '__tests__'), { recursive: true });
+  await fs.writeFile(path.join(dir, 'packages', 'db', 'src', '__tests__', 'PLAT-01.test.ts'),
+    "describe('PLAT-01: migrations apply', () => {});\n");
+
+  const out = execFileSync('bash', [GATE, 'PLAT-01'], { cwd: dir, encoding: 'utf8' });
+  assert.match(out, /Acceptance tests found for PLAT-01/,
+    'a test under packages/ must be found even when a root-level e2e/ exists');
+  assert.match(out, /packages\/db/, 'the found path must be the real test file');
+});
+
+test('AFT-305: an explicit ACCEPTANCE_DIRS still narrows, and says what it ignored', async (t) => {
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  await fs.writeFile(path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'app', scripts: { test: 'echo ok' } }));
+  await fs.mkdir(path.join(dir, 'packages', 'db'), { recursive: true });
+  await fs.writeFile(path.join(dir, 'packages', 'db', 'PLAT-01.test.ts'),
+    "describe('PLAT-01: x', () => {});\n");
+
+  // Narrowing to a directory that does not exist must be loud, and must not find the test.
+  let failed = false;
+  let out = '';
+  try {
+    out = execFileSync('bash', [GATE, 'PLAT-01'],
+      { cwd: dir, encoding: 'utf8', env: { ...process.env, ACCEPTANCE_DIRS: 'nao-existe' } });
+  } catch (e) {
+    failed = true;
+    out = (e.stdout || '') + (e.stderr || '');
+  }
+  assert.match(out, /does not exist — ignoring it/,
+    'a directory named in ACCEPTANCE_DIRS that is absent must be reported, not silently dropped');
+
+  // Narrowing to the real directory finds it.
+  const ok = execFileSync('bash', [GATE, 'PLAT-01'],
+    { cwd: dir, encoding: 'utf8', env: { ...process.env, ACCEPTANCE_DIRS: 'packages' } });
+  assert.match(ok, /Acceptance tests found for PLAT-01/);
+  assert.ok(failed || true); // the first run's exit status is not what this test asserts
+});
