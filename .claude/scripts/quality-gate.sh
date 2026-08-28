@@ -53,6 +53,10 @@ fail=0
 #
 # Set ACCEPTANCE_DIRS explicitly only to narrow the search on purpose.
 ACCEPTANCE_DIRS="${ACCEPTANCE_DIRS:-}"
+# Os globs são propositadamente largos, mas `*Test.*` é insensível a maiúsculas e casa com
+# nomes como `turbo-test.log`. Um log de build contém os nomes dos testes — e portanto os ids
+# das tarefas — por isso um artefacto podia satisfazer o portão sozinho. Caches e saídas de
+# build ficam de fora da varredura, e ficheiros .log nunca contam como teste.
 ACCEPTANCE_GLOBS="${ACCEPTANCE_GLOBS:-*.test.* *.spec.* *_test.* test_*.* *Test.* *.feature}"
 
 acceptance_gate() {
@@ -90,7 +94,10 @@ acceptance_gate() {
   local matches
   matches="$(find "${search_paths[@]}" -type f \( "${globargs[@]}" \) \
               -not -path '*/node_modules/*' -not -path '*/.next/*' \
-              -not -path '*/dist/*' -not -path '*/.git/*' 2>/dev/null \
+              -not -path '*/dist/*' -not -path '*/.git/*' \
+              -not -path '*/.turbo/*' -not -path '*/coverage/*' \
+              -not -path '*/build/*' -not -path '*/out/*' \
+              -not -name '*.log' 2>/dev/null \
             | xargs grep -l -- "$TASK_ID" 2>/dev/null || true)"
 
   if [ -z "$matches" ]; then

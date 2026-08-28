@@ -378,3 +378,31 @@ test('AFT-305: an explicit ACCEPTANCE_DIRS still narrows, and says what it ignor
   assert.match(ok, /Acceptance tests found for PLAT-01/);
   assert.ok(failed || true); // the first run's exit status is not what this test asserts
 });
+
+// --- AFT-306: build artefacts must not satisfy the acceptance gate -----------
+// `*Test.*` is matched case-insensitively, so `turbo-test.log` looked like a test file. A
+// build log contains the test names it just ran — and therefore the task ids — so an artefact
+// could satisfy the gate on its own, with no test present.
+
+test('AFT-306: a build log mentioning the task id does not satisfy the gate', async (t) => {
+  const dir = await mktmp();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  await fs.writeFile(path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'app', scripts: { test: 'echo ok' } }));
+  // A turbo cache log that echoes a task id, and no real test anywhere.
+  await fs.mkdir(path.join(dir, 'apps', 'web', '.turbo'), { recursive: true });
+  await fs.writeFile(path.join(dir, 'apps', 'web', '.turbo', 'turbo-test.log'),
+    '✓ PLAT-01: as migrations aplicam de zero num banco vazio\n');
+
+  let failed = false;
+  let out = '';
+  try {
+    out = execFileSync('bash', [GATE, 'PLAT-01'], { cwd: dir, encoding: 'utf8' });
+  } catch (e) {
+    failed = true;
+    out = (e.stdout || '') + (e.stderr || '');
+  }
+  assert.ok(failed, 'the gate must fail: a log is not an acceptance test');
+  assert.match(out, /no test references task 'PLAT-01'/);
+});
