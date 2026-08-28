@@ -41,7 +41,18 @@ fail=0
 
 # --- 1. acceptance-test gate ---------------------------------------------
 # Find where tests live and confirm at least one references the task id.
-ACCEPTANCE_DIRS="${ACCEPTANCE_DIRS:-tests test __tests__ spec e2e src}"
+# Where to look for acceptance tests.
+#
+# UNSET (the default) means "search the whole tree", not "search this fixed list". The old
+# default was a list of directory names, and the gate used whichever of them happened to
+# exist — so the day a repo grew a root-level `e2e/`, the search silently narrowed to it and
+# stopped seeing tests under `apps/` and `packages/`. The gate then reported "no test
+# references TASK-ID" for tests that existed, and — worse — matched a task id that appeared
+# in a comment inside the one directory it still looked at, reporting coverage it had never
+# verified.
+#
+# Set ACCEPTANCE_DIRS explicitly only to narrow the search on purpose.
+ACCEPTANCE_DIRS="${ACCEPTANCE_DIRS:-}"
 ACCEPTANCE_GLOBS="${ACCEPTANCE_GLOBS:-*.test.* *.spec.* *_test.* test_*.* *Test.* *.feature}"
 
 acceptance_gate() {
@@ -54,9 +65,20 @@ acceptance_gate() {
 
   echo "▸ Acceptance gate for $TASK_ID …"
 
-  # Build a list of candidate test files across the known dirs.
+  # Build a list of candidate test files. With no explicit ACCEPTANCE_DIRS, search the whole
+  # tree: a partial match on a fixed list of directory names is how the search silently
+  # narrows. Named directories that do not exist are reported, not ignored — a typo in
+  # ACCEPTANCE_DIRS should be loud, not a quietly emptier search.
   local search_paths=()
-  for d in $ACCEPTANCE_DIRS; do [ -d "$d" ] && search_paths+=("$d"); done
+  if [ -n "$ACCEPTANCE_DIRS" ]; then
+    for d in $ACCEPTANCE_DIRS; do
+      if [ -d "$d" ]; then
+        search_paths+=("$d")
+      else
+        echo "  ! ACCEPTANCE_DIRS names '$d', which does not exist — ignoring it"
+      fi
+    done
+  fi
   if [ "${#search_paths[@]}" -eq 0 ]; then search_paths=("."); fi
 
   # Collect test files matching common test globs.
@@ -67,7 +89,8 @@ acceptance_gate() {
 
   local matches
   matches="$(find "${search_paths[@]}" -type f \( "${globargs[@]}" \) \
-              -not -path '*/node_modules/*' 2>/dev/null \
+              -not -path '*/node_modules/*' -not -path '*/.next/*' \
+              -not -path '*/dist/*' -not -path '*/.git/*' 2>/dev/null \
             | xargs grep -l -- "$TASK_ID" 2>/dev/null || true)"
 
   if [ -z "$matches" ]; then
